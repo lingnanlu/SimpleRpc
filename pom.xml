@@ -12,6 +12,8 @@
         <module>simple-protocol</module>
         <module>simple-protocol-rpc</module>
         <module>simple-rpc</module>
+        <module>simple-io</module>
+        <module>simple-nio</module>
     </modules>
 
     <dependencyManagement>
@@ -45,4 +47,16 @@
 
     </dependencyManagement>
 
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>1.7</source>
+                    <target>1.7</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
