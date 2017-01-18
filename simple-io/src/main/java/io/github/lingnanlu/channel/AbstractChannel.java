@@ -1,16 +1,30 @@
 package io.github.lingnanlu.channel;
 
+import lombok.Getter;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Created by rico on 2017/1/13.
  */
 abstract public class AbstractChannel {
 
+    private static final AtomicLong ID_GENERATOR = new AtomicLong(0);
+    @Getter protected long id;
     protected Map<Object, Object> attributes = new ConcurrentHashMap<>();
 
     protected ChannelState state = ChannelState.OPEN;
+
+    public AbstractChannel() {
+        id = ID_GENERATOR.incrementAndGet();
+    }
+
+    public AbstractChannel(long id) {
+        this.id = id;
+    }
+
 
     public boolean isOpen() {
         return state == ChannelState.OPEN;

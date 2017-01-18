@@ -1,6 +1,12 @@
 package io.github.lingnanlu;
 
+import io.github.lingnanlu.config.NioConfig;
+import io.github.lingnanlu.spi.NioChannelEventDispatcher;
+
+import java.io.IOException;
 import java.net.SocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectableChannel;
 import java.nio.channels.SocketChannel;
 
 /**
@@ -10,14 +16,12 @@ public class NioTcpByteChannel extends NioByteChannel {
 
     private SocketChannel socketChannel;
 
-    public NioTcpByteChannel(SocketChannel sc, NioChannelEventDispatcher dispatcher) {
-        this.socketChannel = sc;
-        this.dispatcher = dispatcher;
-    }
+    public NioTcpByteChannel(SocketChannel socketChannel, NioConfig config, NioBufferSizePredictor predictor, NioChannelEventDispatcher dispatcher) {
+        super(config, predictor, dispatcher);
 
-    @Override
-    public long getId() {
-        return 0;
+        this.socketChannel = socketChannel;
+        this.localAddress = socketChannel.socket().getLocalSocketAddress();
+        this.remoteAddress = socketChannel.socket().getRemoteSocketAddress();
     }
 
     @Override
@@ -33,5 +37,15 @@ public class NioTcpByteChannel extends NioByteChannel {
     @Override
     public SocketAddress getLocalAddress() {
         return null;
+    }
+
+    @Override
+    protected int readTcp(ByteBuffer buf) throws IOException {
+        return socketChannel.read(buf);
+    }
+
+    @Override
+    public SelectableChannel innerChannel() {
+        return socketChannel;
     }
 }

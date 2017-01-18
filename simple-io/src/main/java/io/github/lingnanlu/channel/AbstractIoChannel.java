@@ -2,20 +2,29 @@ package io.github.lingnanlu.channel;
 
 import io.github.lingnanlu.IoConfig;
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Created by rico on 2017/1/13.
+ *
+ * 和Io相关的Channel， 所以属性是一些缓冲区相关
  */
 public abstract class AbstractIoChannel extends AbstractChannel {
 
 
+    @Getter @Setter protected long lastIoTime = System.currentTimeMillis();
     @Getter protected int minReadBufferSize = IoConfig.MIN_READ_BUFFER_SIZE;
     @Getter protected int defaultReadBufferSize = IoConfig.DEFAULT_READ_BUFFER_SIZE;
     @Getter protected int maxReadBufferSize = IoConfig.MAX_READ_BUFFER_SIZE;
     @Getter protected int maxWriteBufferSize = maxReadBufferSize + (maxReadBufferSize >>> 1);
 
+
     public AbstractIoChannel() {
         super();
+    }
+
+    public AbstractIoChannel(long id) {
+        super(id);
     }
 
     public AbstractIoChannel(int minReadBufferSize) {
@@ -34,6 +43,14 @@ public abstract class AbstractIoChannel extends AbstractChannel {
         this.minReadBufferSize     = minReadBufferSize    ;
         this.defaultReadBufferSize = defaultReadBufferSize;
         this.maxReadBufferSize     = maxReadBufferSize    ;
+    }
+    public AbstractIoChannel(long lastIoTime, int minReadBufferSize, int defaultReadBufferSize, int maxReadBufferSize, int maxWriteBufferSize) {
+        super();
+        this.lastIoTime = lastIoTime;
+        this.minReadBufferSize = minReadBufferSize;
+        this.defaultReadBufferSize = defaultReadBufferSize;
+        this.maxReadBufferSize = maxReadBufferSize;
+        this.maxWriteBufferSize = maxWriteBufferSize;
     }
 
     public void setMinReadBufferSize(int minReadBufferSize) {

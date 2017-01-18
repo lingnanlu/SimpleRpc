@@ -1,110 +1,59 @@
 package io.github.lingnanlu;
 
+import io.github.lingnanlu.config.NioAcceptorConfig;
+import io.github.lingnanlu.spi.NioBufferSizePredictorFactory;
+import io.github.lingnanlu.spi.NioChannelEventDispatcher;
+
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.*;
+import java.util.Iterator;
 
 /**
- * Created by rico on 2017/1/13.
+ * Created by rico on 2017/1/16.
  */
-public abstract class NioAcceptor extends NioReactor implements IoAcceptor {
+abstract public class NioAcceptor extends NioReactor implements IoAcceptor{
 
-    protected final Set<SocketAddress> bindAddresses   = new HashSet<SocketAddress>();
+    protected NioAcceptorConfig config;
     protected Selector selector;
+    //io线程池， 用来处理io操作, 该组件本来在NioReactor中， 但我感觉放在这里解释的更加合理
+    protected NioProcessorPool pool;
+
     protected boolean selectable = false;
 
-    /* TODO
-    这两个成员用来对绑定端口操作进行同步，源代码中， 当AcceptThread正在进行绑定操作时， 当前线程似乎可以进行
-    bind操作，这应该是有问题的， 暂时先按照源代码中的做。
-     */
-    protected final Object lock = new Object();
-    protected boolean endFlag = false;
 
-    public void bind(int port) {
-
+    @Override
+    public void bind(int port) throws IOException {
+        bind(new InetSocketAddress(port));
     }
 
-    public void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddress) throws IOException {
-        if(!selectable){
+    @Override
+    public void bind(SocketAddress address) throws IOException {
+        if (!this.selectable) {
             init();
         }
-
-        List<SocketAddress> localAddresses = new ArrayList<SocketAddress>(2);
-        localAddresses.add(firstLocalAddress);
-
-        if (otherLocalAddress != null) {
-            for (SocketAddress address : otherLocalAddress) {
-                localAddresses.add(address);
-            }
-        }
-
-        bindAddresses.addAll(localAddresses);
-
-        if (!bindAddresses.isEmpty()) {
-            synchronized (lock) {
-                //唤醒selector， 让selector执行绑定操作
-                selector.wakeup();
-
-
-                //等待绑定完成
-                wait0();
-            }
-        }
+        bindByProtocol(address);
+        start();
     }
 
-    private void wait0() {
 
-        while (!this.endFlag) {
-            try {
-                lock.wait();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-
-        this.endFlag = false;
-    }
-
-    private void init() throws IOException {
-        selector = Selector.open();
-        selectable = true;
+    public void start() {
         new AcceptThread().start();
     }
+    protected abstract void bindByProtocol(SocketAddress address) throws IOException;
 
-    public void unbind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddress) {
-
-    }
-
-    public void unbind(int port) {
-
-    }
-
-    public Set<SocketAddress> getBoundAddresses() {
-        return null;
-    }
-
-
-    //acceptor单独运行在一个线程当中
-    //该线程负责接收新到的连接以及绑定新的端口
     private class AcceptThread extends Thread {
-
         @Override
         public void run() {
             while (selectable) {
-
                 try {
-
                     int selected = selector.select();
 
-                    //如果有客户端接入， 就accept
                     if (selected > 0) {
                         accept();
                     }
-
-                    //说明在运行过程中,可以绑定新的端口
-                    bind0();
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -112,41 +61,6 @@ public abstract class NioAcceptor extends NioReactor implements IoAcceptor {
             }
         }
     }
-
-    private void bind0() {
-        if (!bindAddresses.isEmpty()) {
-            for (SocketAddress address : bindAddresses) {
-                //这里演示了一种回滚的方法bindAddresses可以看出所有的操作
-                boolean sucess = false;
-                try {
-                    bindByProtocol(address);
-                    sucess = true;
-                } finally {
-                    if (!sucess) {
-                        rollback();
-                        break;
-                    }
-                }
-
-                //不管有没有成功绑定所有address，这里都清空
-                bindAddresses.clear();
-
-                synchronized (lock) {
-                    endFlag = true;
-                    lock.notifyAll();
-                }
-
-
-            }
-        }
-    }
-
-    // rollback already bound address
-    protected void rollback() {
-
-    }
-
-    protected abstract void bindByProtocol(SocketAddress address);
 
     private void accept() {
         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
@@ -157,5 +71,76 @@ public abstract class NioAcceptor extends NioReactor implements IoAcceptor {
         }
     }
 
-    protected abstract NioByteChannel acceptByProtocol(SelectionKey key);
+    protected abstract void acceptByProtocol(SelectionKey key);
+
+    private void init() throws IOException {
+        selector = Selector.open();
+        selectable = true;
+        new AcceptThread().start();
+    }
+    @Override
+    public void unbind(SocketAddress address) {
+
+    }
+
+    @Override
+    public void unbind(int port) {
+
+    }
+
+
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config,
+                       NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory, SocketAddress address) {
+
+    }
+
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config,
+                       NioChannelEventDispatcher dispatcher, SocketAddress address) {
+        this(handler, config, dispatcher, new NioAdaptiveBufferSizePredictorFactory(), address);
+    }
+
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, SocketAddress address) {
+        this(handler, config,  new NioOrderedDirectChannelEventDispatcher(config.getTotalEventSize()), new NioAdaptiveBufferSizePredictorFactory(), address);
+    }
+
+    public NioAcceptor(IoHandler handler, SocketAddress address) {
+        this(handler, new NioAcceptorConfig(), address);
+    }
+
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory, int port){
+
+        this(handler, config, dispatcher, predictorFactory, new InetSocketAddress(port));
+
+    }
+
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, int port) {
+        this(handler, config, dispatcher, new InetSocketAddress(port));
+    }
+
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, int port) {
+        this(handler, config, new InetSocketAddress(port));
+    }
+
+    public NioAcceptor(IoHandler handler, int port) {
+        this(handler, new NioAcceptorConfig(), port);
+    }
+
+    //不绑定到任何端口的构造器
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory) {
+    }
+
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher) {
+        this(handler, config, dispatcher, new NioAdaptiveBufferSizePredictorFactory());
+    }
+
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config) {
+        this(handler, config, new NioOrderedDirectChannelEventDispatcher(), new NioAdaptiveBufferSizePredictorFactory());
+    }
+
+    public NioAcceptor(IoHandler handler) {
+        this(handler, new NioAcceptorConfig(), new NioOrderedDirectChannelEventDispatcher(), new NioAdaptiveBufferSizePredictorFactory());
+    }
+
+
+
 }

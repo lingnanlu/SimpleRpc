@@ -14,6 +14,6 @@ public abstract class IoConfig {
 
     @Getter @Setter int minReadBufferSize = MIN_READ_BUFFER_SIZE;
     @Getter @Setter int defaultReadBufferSize = DEFAULT_READ_BUFFER_SIZE;
-    @Getter @Setter int getMaxReadBufferSize = MAX_READ_BUFFER_SIZE;
+    @Getter @Setter int maxReadBufferSize = MAX_READ_BUFFER_SIZE;
 
 }
