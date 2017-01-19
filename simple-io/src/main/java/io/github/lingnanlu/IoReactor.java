@@ -5,7 +5,9 @@ package io.github.lingnanlu;
  */
 public interface IoReactor {
 
+    //释放该Reactor分配的所有资源
     void shutdown();
+
 
     IoHandler getHandler();
 
