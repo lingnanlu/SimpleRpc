@@ -18,9 +18,6 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor{
 
     protected NioAcceptorConfig config;
     protected Selector selector;
-    //io线程池， 用来处理io操作, 该组件本来在NioReactor中， 但我感觉放在这里解释的更加合理
-    protected NioProcessorPool pool;
-
     protected boolean selectable = false;
 
 

@@ -32,19 +32,22 @@ public class NioTcpAcceptor extends NioAcceptor {
         SocketChannel sc = null;
         try {
             sc = ssc.accept();
-
             ssc.configureBlocking(false);
 
-            NioByteChannel channel = new NioTcpByteChannel(sc, config,
-                    predictorFactory.newPredictor(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(), config.getMaxReadBufferSize()),
-                    dispatcher);
-
-            NioProcessor processor = pool.pick(channel);
-            channel.setProcessor(processor);
-            processor.add(channel);
+            dispatchToProcessor(sc);
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private void dispatchToProcessor(SocketChannel sc) {
+        NioByteChannel channel = new NioTcpByteChannel(sc, config,
+                predictorFactory.newPredictor(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(), config.getMaxReadBufferSize()),
+                dispatcher);
+
+        NioProcessor processor = pool.pick(channel);
+        channel.setProcessor(processor);
+        processor.add(channel);
     }
 
 

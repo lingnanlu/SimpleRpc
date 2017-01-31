@@ -22,7 +22,7 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     protected SocketAddress localAddress;
     protected SocketAddress remoteAddress;
     protected SelectionKey selectionKey;
-    @Setter protected NioProcessor processor;
+    protected NioProcessor processor;
     protected final NioChannelEventDispatcher dispatcher;
     protected final NioBufferSizePredictor predictor;
     protected final Queue<ChannelEvent<byte[]>> eventQueue = new ConcurrentLinkedQueue<>();
@@ -57,4 +57,8 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     }
 
     Queue<ChannelEvent<byte[]>> getEventQueue() {return eventQueue;}
+
+    public void setProcessor(NioProcessor processor) {
+        this.processor = processor;
+    }
 }
