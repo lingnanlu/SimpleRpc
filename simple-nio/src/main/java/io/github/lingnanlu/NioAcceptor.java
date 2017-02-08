@@ -13,51 +13,43 @@ import java.util.Iterator;
 
 /**
  * Created by rico on 2017/1/16.
+ * 该Acceptor只能绑定一个port,并且不能unbind
+ *
  */
 abstract public class NioAcceptor extends NioReactor implements IoAcceptor{
 
     protected NioAcceptorConfig config;
     protected Selector selector;
-    protected boolean selectable = false;
+    protected boolean shutdwon = false;
 
+    //不绑定到任何端口的构造器
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory) throws IOException {
 
-    @Override
-    public void bind(int port) throws IOException {
-        bind(new InetSocketAddress(port));
+        this.handler = handler;
+        this.config = (config == null ? new NioAcceptorConfig() : config);
+        this.dispatcher = dispatcher;
+        this.bufferSizePredictorFactory = predictorFactory;
+        this.pool = new NioProcessorPool(config, handler, dispatcher);
+
+        init();
     }
 
-    @Override
-    public void bind(SocketAddress address) throws IOException {
-        if (!this.selectable) {
-            init();
-        }
-        bindByProtocol(address);
-        start();
+    private void init() throws IOException {
+        selector = Selector.open();
     }
 
-
-    public void start() {
-        new AcceptThread().start();
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher) throws IOException {
+        this(handler, config, dispatcher, new NioAdaptiveBufferSizePredictorFactory());
     }
-    protected abstract void bindByProtocol(SocketAddress address) throws IOException;
 
-    private class AcceptThread extends Thread {
-        @Override
-        public void run() {
-            while (selectable) {
-                try {
-                    int selected = selector.select();
-
-                    if (selected > 0) {
-                        accept();
-                    }
-
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+    public NioAcceptor(IoHandler handler, NioAcceptorConfig config) throws IOException {
+        this(handler, config, new NioOrderedDirectChannelEventDispatcher(), new NioAdaptiveBufferSizePredictorFactory());
     }
+
+    public NioAcceptor(IoHandler handler) throws IOException {
+        this(handler, new NioAcceptorConfig(), new NioOrderedDirectChannelEventDispatcher(), new NioAdaptiveBufferSizePredictorFactory());
+    }
+
 
     private void accept() {
         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
@@ -70,74 +62,52 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor{
 
     protected abstract void acceptByProtocol(SelectionKey key);
 
-    private void init() throws IOException {
-        selector = Selector.open();
-        selectable = true;
-        new AcceptThread().start();
-    }
     @Override
-    public void unbind(SocketAddress address) {
-
+    public void bind(int port) throws IOException {
+        bind(new InetSocketAddress(port));
     }
+
 
     @Override
-    public void unbind(int port) {
-
+    public void bind(SocketAddress address) throws IOException {
+        bindByProtocol(address);
+        new AcceptorThread().start();
     }
 
+    protected abstract void bindByProtocol(SocketAddress address) throws IOException;
 
-    public NioAcceptor(IoHandler handler, NioAcceptorConfig config,
-                       NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory, SocketAddress address) {
+    private class AcceptorThread extends Thread {
+        @Override
+        public void run() {
+            while (!shutdwon) {
+                try {
+                    int selected = selector.select();
 
+                    if (selected > 0) {
+                        accept();
+                    }
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            try {
+                shutdown0();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
-    public NioAcceptor(IoHandler handler, NioAcceptorConfig config,
-                       NioChannelEventDispatcher dispatcher, SocketAddress address) {
-        this(handler, config, dispatcher, new NioAdaptiveBufferSizePredictorFactory(), address);
+    private void shutdown0() throws IOException {
+
+        selector.close();
+        super.shutdown();
     }
 
-    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, SocketAddress address) {
-        this(handler, config,  new NioOrderedDirectChannelEventDispatcher(config.getTotalEventSize()), new NioAdaptiveBufferSizePredictorFactory(), address);
+    @Override
+    public void shutdown() throws IOException {
+        this.shutdwon = true;
     }
-
-    public NioAcceptor(IoHandler handler, SocketAddress address) {
-        this(handler, new NioAcceptorConfig(), address);
-    }
-
-    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory, int port){
-
-        this(handler, config, dispatcher, predictorFactory, new InetSocketAddress(port));
-
-    }
-
-    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, int port) {
-        this(handler, config, dispatcher, new InetSocketAddress(port));
-    }
-
-    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, int port) {
-        this(handler, config, new InetSocketAddress(port));
-    }
-
-    public NioAcceptor(IoHandler handler, int port) {
-        this(handler, new NioAcceptorConfig(), port);
-    }
-
-    //不绑定到任何端口的构造器
-    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory) {
-    }
-
-    public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher) {
-        this(handler, config, dispatcher, new NioAdaptiveBufferSizePredictorFactory());
-    }
-
-    public NioAcceptor(IoHandler handler, NioAcceptorConfig config) {
-        this(handler, config, new NioOrderedDirectChannelEventDispatcher(), new NioAdaptiveBufferSizePredictorFactory());
-    }
-
-    public NioAcceptor(IoHandler handler) {
-        this(handler, new NioAcceptorConfig(), new NioOrderedDirectChannelEventDispatcher(), new NioAdaptiveBufferSizePredictorFactory());
-    }
-
-
-
 }

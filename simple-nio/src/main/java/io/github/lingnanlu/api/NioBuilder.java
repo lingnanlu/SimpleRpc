@@ -7,6 +7,8 @@ import io.github.lingnanlu.config.NioConfig;
 import io.github.lingnanlu.spi.NioBufferSizePredictorFactory;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
 
+import java.io.IOException;
+
 /**
  * Created by rico on 2017/1/16.
  *
@@ -21,7 +23,7 @@ import io.github.lingnanlu.spi.NioChannelEventDispatcher;
  */
 abstract public class NioBuilder<T> {
 
-    abstract public T build();
+    abstract public T build() throws IOException;
 
     protected final IoHandler handler;
     protected NioChannelEventDispatcher dispatcher = new NioOrderedDirectChannelEventDispatcher();
@@ -29,11 +31,8 @@ abstract public class NioBuilder<T> {
     protected int readBufferSize = 2048;
     protected int minReadBufferSize = 64;
     protected int maxReadBufferSize = 65536;
-    protected int ioTimeoutInMillis = 120 * 1000;
     protected int processorPoolSize = Runtime.getRuntime().availableProcessors();
     protected int executorSize = processorPoolSize << 3;
-    protected int channelEventSize = Integer.MAX_VALUE;
-    protected int totalEventSize = Integer.MAX_VALUE;
 
     public NioBuilder(IoHandler handler) {
         this.handler = handler;
@@ -44,16 +43,10 @@ abstract public class NioBuilder<T> {
     public NioBuilder<T> readBufferSize(int size) {this.readBufferSize = size; return this;}
     public NioBuilder<T> processorPoolSize(int size) {this.processorPoolSize = size; return this;}
     public NioBuilder<T> executorSize(int size) {this.executorSize = size; return this;}
-    public NioBuilder<T> channelEventSize(int size) {this.channelEventSize = size; return this;}
-    public NioBuilder<T> totalEventSize(int size) {this.totalEventSize = size; return this;}
-    public NioBuilder<T> ioTimeoutInMillis(int timeout) {this.ioTimeoutInMillis = timeout; return this;}
     public NioBuilder<T> dispatcher(NioChannelEventDispatcher dispatcher) {this.dispatcher = dispatcher; return this;}
     public NioBuilder<T> predictorFactory(NioBufferSizePredictorFactory factory) {this.predictorFactory = factory; return this;}
 
-
     protected void set(NioConfig config) {
-        config.setTotalEventSize(totalEventSize);
-        config.setChannelEventSize(channelEventSize);
         config.setExecutorSize(executorSize);
         config.setProcessorPoolSize(processorPoolSize);
         config.setDefaultReadBufferSize(readBufferSize);

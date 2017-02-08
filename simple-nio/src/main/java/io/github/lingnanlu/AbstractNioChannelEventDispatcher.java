@@ -7,15 +7,6 @@ import io.github.lingnanlu.spi.NioChannelEventDispatcher;
  */
 abstract public class AbstractNioChannelEventDispatcher implements NioChannelEventDispatcher {
 
-    public AbstractNioChannelEventDispatcher() {
-        this(Integer.MAX_VALUE);
-    }
-
-    public AbstractNioChannelEventDispatcher(int totalEventSize) {
-
-    }
-
-
     @Override
     public void shutdown() {
 

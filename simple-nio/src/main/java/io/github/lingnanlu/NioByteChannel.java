@@ -1,10 +1,8 @@
 package io.github.lingnanlu;
 
 import io.github.lingnanlu.channel.AbstractIoByteChannel;
-import io.github.lingnanlu.channel.ChannelEvent;
 import io.github.lingnanlu.config.NioConfig;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
-import lombok.Setter;
 
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -25,16 +23,21 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     protected NioProcessor processor;
     protected final NioChannelEventDispatcher dispatcher;
     protected final NioBufferSizePredictor predictor;
-    protected final Queue<ChannelEvent<byte[]>> eventQueue = new ConcurrentLinkedQueue<>();
+    protected final Queue<ByteBuffer> writeBufferQueue = new ConcurrentLinkedQueue<ByteBuffer>()          ;
 
 
     public NioByteChannel(NioConfig config, NioBufferSizePredictor predictor, NioChannelEventDispatcher dispatcher) {
-
         super(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(),config.getMaxReadBufferSize());
         this.predictor = predictor;
         this.dispatcher = dispatcher;
     }
 
+
+    @Override
+    public boolean write(byte[] data) {
+        writeBufferQueue.add(ByteBuffer.wrap(data));
+        processor.flush(this);
+    }
 
     boolean isReadable() {
         return selectionKey.isValid() && selectionKey.isReadable();
@@ -52,13 +55,10 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     }
     public abstract SelectableChannel innerChannel();
 
-    void add(ChannelEvent<byte[]> event) {
-        eventQueue.offer(event);
-    }
-
-    Queue<ChannelEvent<byte[]>> getEventQueue() {return eventQueue;}
-
     public void setProcessor(NioProcessor processor) {
         this.processor = processor;
     }
+
+
+
 }

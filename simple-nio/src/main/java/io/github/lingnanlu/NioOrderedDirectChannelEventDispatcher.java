@@ -8,15 +8,6 @@ import io.github.lingnanlu.channel.ChannelEvent;
  * 直接在IO process 线程中分发事件
  */
 public class NioOrderedDirectChannelEventDispatcher extends AbstractNioChannelEventDispatcher {
-
-
-    public NioOrderedDirectChannelEventDispatcher() {
-        super();
-    }
-
-    public NioOrderedDirectChannelEventDispatcher(int totalEventSize) {
-        super(totalEventSize);
-    }
     @Override
     public void dispatch(ChannelEvent<byte[]> event) {
         event.fire();

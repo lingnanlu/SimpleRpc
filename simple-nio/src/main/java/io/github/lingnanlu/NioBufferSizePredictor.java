@@ -7,6 +7,5 @@ public interface NioBufferSizePredictor {
 
     int next();
 
-
-    void previous(int readBytes);
+    void previous(int previousSize);
 }

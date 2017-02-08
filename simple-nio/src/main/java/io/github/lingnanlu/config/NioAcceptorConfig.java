@@ -9,6 +9,5 @@ import lombok.Setter;
 public class NioAcceptorConfig extends NioConfig {
 
     @Getter @Setter private boolean reuseAddress = true;
-    @Getter @Setter private int channelSize = Integer.MAX_VALUE;
     @Getter @Setter private int backlog = 50;
 }

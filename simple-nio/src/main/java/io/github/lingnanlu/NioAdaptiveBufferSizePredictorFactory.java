@@ -8,6 +8,6 @@ import io.github.lingnanlu.spi.NioBufferSizePredictorFactory;
 public class NioAdaptiveBufferSizePredictorFactory implements NioBufferSizePredictorFactory {
     @Override
     public NioBufferSizePredictor newPredictor(int mininum, int initial, int maximum) {
-        return null;
+        return new NioAdaptiveBufferSizePredictor(mininum, initial, maximum);
     }
 }

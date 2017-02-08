@@ -32,7 +32,7 @@ public class NioTcpAcceptor extends NioAcceptor {
         SocketChannel sc = null;
         try {
             sc = ssc.accept();
-            ssc.configureBlocking(false);
+            sc.configureBlocking(false);
 
             dispatchToProcessor(sc);
         } catch (IOException e) {
@@ -42,7 +42,7 @@ public class NioTcpAcceptor extends NioAcceptor {
 
     private void dispatchToProcessor(SocketChannel sc) {
         NioByteChannel channel = new NioTcpByteChannel(sc, config,
-                predictorFactory.newPredictor(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(), config.getMaxReadBufferSize()),
+                bufferSizePredictorFactory.newPredictor(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(), config.getMaxReadBufferSize()),
                 dispatcher);
 
         NioProcessor processor = pool.pick(channel);
@@ -50,52 +50,19 @@ public class NioTcpAcceptor extends NioAcceptor {
         processor.add(channel);
     }
 
-
-    public NioTcpAcceptor(IoHandler handler, int port) {
-        super(handler, port);
-    }
-
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, int port) {
-        super(handler, config, port);
-    }
-
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, int port) {
-        super(handler, config, dispatcher, port);
-    }
-
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory, int port) {
-        super(handler, config, dispatcher, predictorFactory, port);
-    }
-
-    public NioTcpAcceptor(IoHandler handler, SocketAddress address) {
-        super(handler, address);
-    }
-
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, SocketAddress address) {
-        super(handler, config, address);
-    }
-
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, SocketAddress address) {
-        super(handler, config, dispatcher, address);
-    }
-
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory, SocketAddress address) {
-        super(handler, config, dispatcher, predictorFactory, address);
-    }
-
-    public NioTcpAcceptor(IoHandler handler) {
+    public NioTcpAcceptor(IoHandler handler) throws IOException {
         super(handler);
     }
 
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config) {
+    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config) throws IOException {
         super(handler, config);
     }
 
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher) {
+    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher) throws IOException {
         super(handler, config, dispatcher);
     }
 
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory) {
+    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory) throws IOException {
         super(handler, config, dispatcher, predictorFactory);
     }
 }

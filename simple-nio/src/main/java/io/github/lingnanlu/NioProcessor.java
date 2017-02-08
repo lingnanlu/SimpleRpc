@@ -13,45 +13,35 @@ import java.nio.channels.Selector;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 
 /**
  * Created by rico on 2017/1/16.
  */
 public class NioProcessor extends NioReactor implements IoProcessor{
 
-
     private final Queue<NioByteChannel> newChannels = new ConcurrentLinkedQueue<>();
-    private final Queue<NioByteChannel> flushingChannels = new ConcurrentLinkedQueue<>();
-    private final Queue<NioByteChannel> closingChannels = new ConcurrentLinkedQueue<>();
     private final NioByteBufferAllocator allocator = new NioByteBufferAllocator();
-    private ProcessThread pt;
-
-    private IoProtocol  protocol;
     private final NioConfig config;
-    private final Executor executor;
     private Selector selector;
     private boolean shutdown = false;
 
+    public NioProcessor(NioConfig config, IoHandler handler, NioChannelEventDispatcher dispatcher) throws IOException {
 
-    public NioProcessor(NioConfig config, IoHandler handler, NioChannelEventDispatcher dispatcher) {
         this.config = config;
-
-        //todo 这里的线程池是用来执行NioProcessor的，为什么需要一个线程池来执行呢
-        this.executor = Executors.newCachedThreadPool();
         this.handler = handler;
+        this.dispatcher = dispatcher;
+        init();
+        startup();
 
-        try {
-            selector = Selector.open();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    }
+
+    private void init() throws IOException {
+        selector = Selector.open();
     }
 
     @Override
     public void shutdown() {
-
+        this.shutdown = true;
     }
 
     @Override
@@ -61,34 +51,30 @@ public class NioProcessor extends NioReactor implements IoProcessor{
 
     public void add(NioByteChannel channel) {
         newChannels.add(channel);
-        startup();
-    }
 
+        //因为processor可能因为selector上没且就绪的channel而阻塞，所以需要唤醒它
+        selector.wakeup();
+    }
 
     private void startup() {
-
-        if (pt == null) {
-            pt = new ProcessThread();
-
-            executor.execute(pt);
-        }
+        new ProcessorThread().start();
     }
 
-    /*
-    Processor运行在一个单独的线程当中, 由executor来执行
-    这样写的好处是， 在使用者看来， Processor就是一个处理者，而不考虑其在哪个线程中执行，由Processor自己决定怎样执行
-     */
-    private class ProcessThread implements Runnable {
+    public void flush(NioByteChannel channel) {
+    }
+
+    private class ProcessorThread extends Thread {
 
         @Override
         public void run() {
+
             while (!shutdown) {
 
                 try {
 
-                    int selected = selector.select();
-
                     register();
+
+                    int selected = selector.select();
 
                     if (selected > 0) {
                         process();
@@ -98,21 +84,39 @@ public class NioProcessor extends NioReactor implements IoProcessor{
                 }
 
             }
+
+            try {
+                shutdown0();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+
         }
     }
 
+    private void shutdown0() throws IOException {
+        selector.close();
+        newChannels.clear();
 
-    private void register() throws ClosedChannelException {
+        //todo 在这里关闭所有的channel
+    }
+
+
+    private void register()  {
         for(NioByteChannel channel = newChannels.poll(); channel != null; channel = newChannels.poll()) {
             SelectableChannel sc = channel.innerChannel();
-            SelectionKey key = sc.register(selector, SelectionKey.OP_READ, channel);
+            SelectionKey key = null;
+            try {
+                key = sc.register(selector, SelectionKey.OP_READ, channel);
+            } catch (ClosedChannelException e) {
+                e.printStackTrace();
+            }
             channel.setSelectionKey(key);
 
             fireChannelOpened(channel);
         }
     }
-
-
 
     private void process() {
         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
@@ -124,12 +128,9 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     }
 
     private void process0(NioByteChannel channel) {
-
         if (channel.isReadable()) {
             read(channel);
         }
-
-
     }
 
     private void read(NioByteChannel channel) {
@@ -140,12 +141,9 @@ public class NioProcessor extends NioReactor implements IoProcessor{
 
         int readBytes = 0;
         try {
-            if (protocol.equals(IoProtocol.TCP)) {
-                readBytes = readTcp(channel, buf);
-            }
-
+            readBytes = read(channel, buf);
         } catch (IOException e) {
-
+            e.printStackTrace();
         } finally {
             if (readBytes > 0) {
                 buf.clear();
@@ -153,7 +151,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         }
     }
 
-    private int readTcp(NioByteChannel channel, ByteBuffer buf) throws IOException {
+    private int read(NioByteChannel channel, ByteBuffer buf) throws IOException {
         int readBytes = 0;
         int ret;
         while ((ret = channel.readTcp(buf)) > 0) {
@@ -175,14 +173,11 @@ public class NioProcessor extends NioReactor implements IoProcessor{
 
         byte[] barr = new byte[length];
         System.arraycopy(buf.array(), 0, barr, 0, length);
-
         //交给Dispatcher来分发事件给IoHandler来处理， 至于在哪个线程中去处理， processor不关心， 由Dispatcher来决定
         dispatcher.dispatch(new NioByteChannelEvent(ChannelEventType.CHANNEL_READ, channel, handler, barr));
-
     }
 
     private void fireChannelOpened(NioByteChannel channel) {
-
         dispatcher.dispatch(new NioByteChannelEvent(ChannelEventType.CHANNEL_OPENED, channel, handler));
     }
 }

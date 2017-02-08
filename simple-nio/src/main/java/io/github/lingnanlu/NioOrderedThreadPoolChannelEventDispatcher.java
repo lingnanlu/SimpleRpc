@@ -21,7 +21,6 @@ public class NioOrderedThreadPoolChannelEventDispatcher extends AbstractNioChann
         this(Runtime.getRuntime().availableProcessors() * 8, Integer.MAX_VALUE);
     }
     public NioOrderedThreadPoolChannelEventDispatcher(int totalEventSize, int executorSize) {
-        super(totalEventSize);
 
         if (executorSize <= 0) {
             executorSize = Runtime.getRuntime().availableProcessors() * 8;
