@@ -60,40 +60,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         new ProcessorThread().start();
     }
 
-    public void flush(NioByteChannel channel) {
-    }
 
-    private class ProcessorThread extends Thread {
-
-        @Override
-        public void run() {
-
-            while (!shutdown) {
-
-                try {
-
-                    register();
-
-                    int selected = selector.select();
-
-                    if (selected > 0) {
-                        process();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-
-            }
-
-            try {
-                shutdown0();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-
-        }
-    }
 
     private void shutdown0() throws IOException {
         selector.close();
@@ -102,13 +69,12 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         //todo 在这里关闭所有的channel
     }
 
-
     private void register()  {
         for(NioByteChannel channel = newChannels.poll(); channel != null; channel = newChannels.poll()) {
             SelectableChannel sc = channel.innerChannel();
             SelectionKey key = null;
             try {
-                key = sc.register(selector, SelectionKey.OP_READ, channel);
+                key = sc.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE , channel);
             } catch (ClosedChannelException e) {
                 e.printStackTrace();
             }
@@ -118,7 +84,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         }
     }
 
-    private void process() {
+    private void process() throws IOException {
         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
         while (it.hasNext()) {
             NioByteChannel channel = (NioByteChannel) it.next().attachment();
@@ -127,9 +93,21 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         }
     }
 
-    private void process0(NioByteChannel channel) {
+    private void process0(NioByteChannel channel) throws IOException {
         if (channel.isReadable()) {
             read(channel);
+        }
+
+        if (channel.isWritable()) {
+            write(channel);
+        }
+    }
+
+    private void write(NioByteChannel channel) throws IOException {
+        Queue<ByteBuffer> writeBuffers = channel.getWriteBufferQueue();
+        for(ByteBuffer buf = writeBuffers.poll(); buf != null; buf = writeBuffers.poll()) {
+            channel.writeTcp(buf);
+            fireChannelWritten(channel, buf);
         }
     }
 
@@ -169,6 +147,8 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         return readBytes;
     }
 
+
+
     private void fireChannelRead(NioByteChannel channel, ByteBuffer buf, int length) {
 
         byte[] barr = new byte[length];
@@ -179,5 +159,47 @@ public class NioProcessor extends NioReactor implements IoProcessor{
 
     private void fireChannelOpened(NioByteChannel channel) {
         dispatcher.dispatch(new NioByteChannelEvent(ChannelEventType.CHANNEL_OPENED, channel, handler));
+    }
+
+    private void fireChannelWritten(NioByteChannel channel, ByteBuffer buf) {
+        dispatcher.dispatch(new NioByteChannelEvent(ChannelEventType.CHANNEL_WRITTEN, channel, handler, buf.array()));
+    }
+
+    private class ProcessorThread extends Thread {
+
+        @Override
+        public void run() {
+
+            while (!shutdown) {
+
+                try {
+
+                    //这里,相对于原来的代码,做了简化处理。为channel注册OP_WRITE & OP_READ
+
+                    //processor只做两件事
+                    //1. 注册新的channel
+                    //2. 处理就绪channel
+                    //这里channel会先将内容写入到自己的queue中，然后处理写channel时，将queue中的所有东西一并写入
+                    register();
+
+                    int selected = selector.select();
+
+                    if (selected > 0) {
+                        process();
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+            }
+
+            try {
+                shutdown0();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+
+        }
     }
 }

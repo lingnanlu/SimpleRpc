@@ -20,7 +20,6 @@ public class NioByteChannelEvent extends AbstractNioByteChannelEvent {
         this(type, channel, handler, null);
     }
 
-
     @Override
     public void fire() {
         switch (type) {
@@ -29,6 +28,10 @@ public class NioByteChannelEvent extends AbstractNioByteChannelEvent {
                 break;
             case CHANNEL_OPENED:
                 handler.channelOpened(channel);
+                break;
+            case CHANNEL_WRITTEN:
+                handler.channelWritten(channel, (byte[]) parameter);
+                break;
         }
     }
 }

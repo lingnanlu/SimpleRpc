@@ -7,12 +7,9 @@ package io.github.lingnanlu.channel;
  */
 abstract public class AbstractIoByteChannel extends AbstractIoChannel implements Channel<byte[]> {
 
-
-
     public AbstractIoByteChannel() {
         super();
     }
-
 
     public AbstractIoByteChannel(int minReadBufferSize) {
         super(minReadBufferSize);

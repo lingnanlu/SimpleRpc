@@ -17,7 +17,6 @@ public class NioEchoServer {
 
     public void start() throws IOException {
         IoAcceptor acceptor = new NioTcpAcceptorBuilder(new NioEchoServerHandler()).build();
-
         acceptor.bind(port);
     }
 

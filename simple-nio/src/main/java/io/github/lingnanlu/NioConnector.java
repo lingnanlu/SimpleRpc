@@ -51,6 +51,7 @@ abstract public class NioConnector extends NioReactor implements IoConnector {
         SocketAddress remoteAddress = new InetSocketAddress(ip, port);
         connect(remoteAddress);
     }
+
     @Override
     public void connect(SocketAddress remoteAddress) throws IOException {
         connect(remoteAddress, null);

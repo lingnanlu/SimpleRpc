@@ -10,7 +10,8 @@ public class NioEchoServerHandler extends AbstractIoHandler {
     @Override
     public void channelRead(Channel<byte[]> channel, byte[] bytes) {
 //        channel.write(bytes);
-        System.out.println(bytes);
+        System.out.println(new String(bytes));
+        channel.write(bytes);
     }
 
     @Override

@@ -26,6 +26,16 @@ public class NioEchoClientHandler extends AbstractIoHandler {
     @Override
     public void channelRead(Channel<byte[]> channel, byte[] bytes) {
         System.out.println("ECHO-RECV: " + new String(bytes));
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         send(channel);
+    }
+
+    @Override
+    public void channelWritten(Channel<byte[]> channel, byte[] bytes) {
+        System.out.println("Channel WRITE " + new String(bytes));
     }
 }

@@ -25,11 +25,6 @@ public class NioTcpByteChannel extends NioByteChannel {
     }
 
     @Override
-    public boolean write(byte[] data) {
-        return false;
-    }
-
-    @Override
     public SocketAddress getRemoteAddress() {
         return null;
     }
@@ -47,5 +42,11 @@ public class NioTcpByteChannel extends NioByteChannel {
     @Override
     public SelectableChannel innerChannel() {
         return socketChannel;
+    }
+
+
+    @Override
+    protected int writeTcp(ByteBuffer buf) throws IOException {
+        return socketChannel.write(buf);
     }
 }

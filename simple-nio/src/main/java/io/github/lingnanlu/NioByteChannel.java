@@ -1,8 +1,10 @@
 package io.github.lingnanlu;
 
 import io.github.lingnanlu.channel.AbstractIoByteChannel;
+import io.github.lingnanlu.channel.ChannelEvent;
 import io.github.lingnanlu.config.NioConfig;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
+import lombok.Getter;
 
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -23,8 +25,12 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     protected NioProcessor processor;
     protected final NioChannelEventDispatcher dispatcher;
     protected final NioBufferSizePredictor predictor;
+
+    //该缓冲的目的是防止写入过快，导致channel写缓冲区已满，未缓冲的数据丢失
     protected final Queue<ByteBuffer> writeBufferQueue = new ConcurrentLinkedQueue<ByteBuffer>()          ;
 
+
+    @Getter protected final    Queue<ChannelEvent<byte[]>> eventQueue  = new ConcurrentLinkedQueue<ChannelEvent<byte[]>>();
 
     public NioByteChannel(NioConfig config, NioBufferSizePredictor predictor, NioChannelEventDispatcher dispatcher) {
         super(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(),config.getMaxReadBufferSize());
@@ -36,7 +42,7 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     @Override
     public boolean write(byte[] data) {
         writeBufferQueue.add(ByteBuffer.wrap(data));
-        processor.flush(this);
+        return true;
     }
 
     boolean isReadable() {
@@ -60,5 +66,20 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     }
 
 
+    public Queue<ByteBuffer> getWriteBufferQueue() {
+        return writeBufferQueue;
+    }
 
+    public SelectionKey getSelectionKey() {
+        return selectionKey;
+    }
+
+
+    protected int writeTcp(ByteBuffer buf) throws IOException {
+        return  0;
+    }
+
+    public boolean isWritable() {
+        return selectionKey.isWritable();
+    }
 }
