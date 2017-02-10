@@ -4,7 +4,6 @@ import io.github.lingnanlu.config.NioConfig;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
 
 import java.io.IOException;
-import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
@@ -25,24 +24,10 @@ public class NioTcpByteChannel extends NioByteChannel {
         this.remoteAddress = socketChannel.socket().getRemoteSocketAddress();
     }
 
-    @Override
-    public SocketAddress getRemoteAddress() {
-        return null;
-    }
-
-    @Override
-    public SocketAddress getLocalAddress() {
-        return null;
-    }
-
+    //这两个方法最终也是由NioProcess调用，并不是直接调用
     @Override
     protected int readTcp(ByteBuffer buf) throws IOException {
         return socketChannel.read(buf);
-    }
-
-    @Override
-    public SelectableChannel innerChannel() {
-        return socketChannel;
     }
 
     @Override
@@ -50,6 +35,12 @@ public class NioTcpByteChannel extends NioByteChannel {
         return socketChannel.write(buf);
     }
 
+    @Override
+    public SelectableChannel innerChannel() {
+        return socketChannel;
+    }
+
+    //这里是真正关闭Channel的地方，该方法不对外暴露，是由processor来调用的。
     @Override
     protected void close0() throws IOException {
         SelectionKey key = getSelectionKey();

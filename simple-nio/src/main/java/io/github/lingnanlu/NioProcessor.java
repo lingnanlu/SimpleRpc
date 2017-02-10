@@ -45,6 +45,9 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         new ProcessorThread().start();
     }
 
+
+
+
     private class ProcessorThread extends Thread {
 
         @Override
@@ -65,6 +68,8 @@ public class NioProcessor extends NioReactor implements IoProcessor{
                     if (selected > 0) {
                         process();
                     }
+
+                    closeChannels();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -89,6 +94,11 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         return null;
     }
 
+    public void remove(NioByteChannel channel) {
+        scheduleClose(channel);
+        selector.wakeup();
+    }
+
     public void add(NioByteChannel channel) {
         newChannels.add(channel);
 
@@ -109,18 +119,26 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         selector.close();
     }
 
+    private void scheduleClose(NioByteChannel channel) {
+        closingChannels.add(channel);
+    }
+
     private void closeChannels() {
-
         for(NioByteChannel channel = closingChannels.poll(); channel != null; channel = closingChannels.poll()) {
-
+            channel.setClosing();
             close(channel);
 
+            channel.setClosed();
             fireChannelClosed(channel);
         }
     }
 
     private void close(NioByteChannel channel) {
-        channel.close();
+        try {
+            channel.close0();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private void register()  {

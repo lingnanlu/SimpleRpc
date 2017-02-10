@@ -11,7 +11,6 @@ import lombok.Setter;
  */
 public abstract class AbstractIoChannel extends AbstractChannel {
 
-
     @Getter @Setter protected long lastIoTime = System.currentTimeMillis();
     @Getter protected int minReadBufferSize = IoConfig.MIN_READ_BUFFER_SIZE;
     @Getter protected int defaultReadBufferSize = IoConfig.DEFAULT_READ_BUFFER_SIZE;
@@ -22,7 +21,6 @@ public abstract class AbstractIoChannel extends AbstractChannel {
     public AbstractIoChannel() {
         super();
     }
-
     public AbstractIoChannel(long id) {
         super(id);
     }
@@ -44,6 +42,7 @@ public abstract class AbstractIoChannel extends AbstractChannel {
         this.defaultReadBufferSize = defaultReadBufferSize;
         this.maxReadBufferSize     = maxReadBufferSize    ;
     }
+
     public AbstractIoChannel(long lastIoTime, int minReadBufferSize, int defaultReadBufferSize, int maxReadBufferSize, int maxWriteBufferSize) {
         super();
         this.lastIoTime = lastIoTime;
@@ -85,7 +84,6 @@ public abstract class AbstractIoChannel extends AbstractChannel {
         if (maxReadBufferSize < defaultReadBufferSize) {
             throw new IllegalArgumentException("maxReadBufferSize: " + maxReadBufferSize + " (expected: greater than " + defaultReadBufferSize + ')');
         }
-
         this.maxReadBufferSize = maxReadBufferSize;
     }
 
@@ -93,7 +91,6 @@ public abstract class AbstractIoChannel extends AbstractChannel {
         if (maxWriteBufferSize < maxReadBufferSize) {
             maxWriteBufferSize = maxReadBufferSize;
         }
-
         this.maxWriteBufferSize = maxWriteBufferSize;
     }
 
