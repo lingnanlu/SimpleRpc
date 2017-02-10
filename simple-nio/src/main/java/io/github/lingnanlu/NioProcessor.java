@@ -22,6 +22,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     private final Queue<NioByteChannel> newChannels = new ConcurrentLinkedQueue<>();
     private final NioByteBufferAllocator allocator = new NioByteBufferAllocator();
     private final NioConfig config;
+    protected NioProcessorPool pool;
     private Selector selector;
     private boolean shutdown = false;
 

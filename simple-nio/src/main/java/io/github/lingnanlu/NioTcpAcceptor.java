@@ -24,6 +24,7 @@ public class NioTcpAcceptor extends NioAcceptor {
         ss.setReuseAddress(config.isReuseAddress());
         ss.bind(address, config.getBacklog());
         ssc.register(selector, SelectionKey.OP_ACCEPT);
+        boundmap.put(address, ssc);
     }
 
     @Override

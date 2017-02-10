@@ -17,6 +17,7 @@ abstract public class NioConnector extends NioReactor implements IoConnector {
     protected final NioConnectorConfig config;
 
     protected Selector selector;
+    protected NioProcessorPool pool;
 
     public NioConnector(IoHandler handler) throws IOException {
         this(handler, new NioConnectorConfig());
@@ -66,6 +67,7 @@ abstract public class NioConnector extends NioReactor implements IoConnector {
     @Override
     public void shutdown() throws IOException {
         selector.close();
+        pool.shutdown();
         super.shutdown();
     }
 }
