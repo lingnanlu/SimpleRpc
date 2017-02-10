@@ -15,33 +15,40 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Created by rico on 2017/1/16.
- * 该Acceptor只能绑定一个port,并且不能unbind
  */
 abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
 
-    protected final Set<SocketAddress> bindAddresses = new HashSet<>();
-    protected final Map<SocketAddress, SelectableChannel> boundmap = new ConcurrentHashMap<>();
-    protected final Object lock = new Object();
-    protected boolean bindEnd = false;
-    protected NioAcceptorConfig config;
-    protected Selector selector;
-    protected boolean shutdwon = false;
+    //组件
     protected NioProcessorPool pool;
 
-    //不绑定到任何端口的构造器
+    //属性
+    protected NioAcceptorConfig config;
+    protected boolean shutdown = false;
+
+    //成员
+    protected final Set<SocketAddress> bindAddresses = new HashSet<>();
+    protected final Set<SocketAddress> unbindAddresses = new HashSet<>();
+    protected final Map<SocketAddress, SelectableChannel> boundmap = new ConcurrentHashMap<>();
+    protected Selector selector;
+
+    //辅助
+    protected final Object lock = new Object();
+    protected boolean endFlag = false;
+
     public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory) throws IOException {
 
+        //组装
         this.handler = handler;
         this.config = (config == null ? new NioAcceptorConfig() : config);
         this.dispatcher = dispatcher;
         this.bufferSizePredictorFactory = predictorFactory;
         this.pool = new NioProcessorPool(config, handler, dispatcher);
 
+        //初始化
         init();
-    }
 
-    private void init() throws IOException {
-        selector = Selector.open();
+        //启动
+        startup();
     }
 
     public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher) throws IOException {
@@ -56,85 +63,19 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         this(handler, new NioAcceptorConfig(), new NioOrderedDirectChannelEventDispatcher(), new NioAdaptiveBufferSizePredictorFactory());
     }
 
-
-    private void accept() {
-        Iterator<SelectionKey> it = selector.selectedKeys().iterator();
-        while (it.hasNext()) {
-            SelectionKey key = it.next();
-            it.remove();
-            acceptByProtocol(key);
-        }
+    private void startup() {
+        new AcceptorThread().start();
     }
 
-    protected abstract void acceptByProtocol(SelectionKey key);
-
-    @Override
-    public void bind(int port) throws IOException {
-        bind(new InetSocketAddress(port));
+    private void init() throws IOException {
+        selector = Selector.open();
     }
 
-    @Override
-    public void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException {
-
-
-        if (firstLocalAddress == null) {
-            throw new IllegalArgumentException("Need a local address to bound");
-        }
-
-        List<SocketAddress> localAddresses = new ArrayList<>();
-
-        for (SocketAddress address : otherLocalAddresses) {
-            localAddresses.add(address);
-        }
-
-        bindAddresses.addAll(localAddresses);
-
-
-        synchronized (lock) {
-            selector.wakeup();
-
-            waitForAddressedBind();
-        }
-
-
-//        bindByProtocol(firstLocalAddress);
-//        new AcceptorThread().start();
-
-    }
-
-    @Override
-    public void unbind(int port) {
-
-    }
-
-    @Override
-    public void unbind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) {
-
-    }
-
-    @Override
-    public Set<SocketAddress> getBoundAddresses() {
-        return null;
-    }
-
-    private void waitForAddressedBind() {
-        while (!bindEnd) {
-            try {
-                lock.wait();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-
-
-    }
-
-    protected abstract void bindByProtocol(SocketAddress address) throws IOException;
-
+    //工作流程
     private class AcceptorThread extends Thread {
         @Override
         public void run() {
-            while (!shutdwon) {
+            while (!shutdown) {
                 try {
                     int selected = selector.select();
 
@@ -143,6 +84,9 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
                     }
 
                     bind0();
+
+                    unbind0();
+
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -153,6 +97,123 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    //接口
+    @Override
+    public void bind(int port) throws IOException {
+        bind(new InetSocketAddress(port));
+    }
+
+    @Override
+    public void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException {
+
+        if (firstLocalAddress == null) {
+            throw new IllegalArgumentException("Need a local address to bound");
+        }
+
+        List<SocketAddress> localAddresses = new ArrayList<>();
+        bindAddresses.add(firstLocalAddress);
+
+        for (SocketAddress address : otherLocalAddresses) {
+            localAddresses.add(address);
+        }
+
+        bindAddresses.addAll(localAddresses);
+
+        synchronized (lock) {
+            selector.wakeup();
+            wait0();
+        }
+
+    }
+
+    @Override
+    public void unbind(int port) {
+        unbind(new InetSocketAddress(port));
+    }
+
+    @Override
+    public void unbind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) {
+
+        if (firstLocalAddress == null) {
+            return;
+        }
+
+        List<SocketAddress> localAddresses = new ArrayList<>();
+
+        if (boundmap.containsKey(firstLocalAddress)) {
+            localAddresses.add(firstLocalAddress);
+        }
+
+        for (SocketAddress address : otherLocalAddresses) {
+            if (boundmap.containsKey(address)) {
+                localAddresses.add(address);
+            }
+        }
+
+        unbindAddresses.addAll(localAddresses);
+
+        synchronized (lock) {
+            selector.wakeup();
+            wait0();
+        }
+
+
+    }
+
+    @Override
+    public void shutdown() throws IOException {
+        this.shutdown = true;
+    }
+
+    @Override
+    public Set<SocketAddress> getBoundAddresses() {
+        return new HashSet<>(boundmap.keySet());
+    }
+
+    private void accept() {
+        Iterator<SelectionKey> it = selector.selectedKeys().iterator();
+        while (it.hasNext()) {
+            SelectionKey key = it.next();
+            it.remove();
+            acceptByProtocol(key);
+        }
+    }
+
+
+    private void wait0() {
+        while (!endFlag) {
+            try {
+                lock.wait();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        //reset endflag
+        endFlag = false;
+    }
+
+
+    private void unbind0() {
+        for (SocketAddress address : unbindAddresses) {
+            SelectableChannel ssc = boundmap.get(address);
+            try {
+                close(ssc);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            boundmap.remove(address);
+        }
+
+        unbindAddresses.clear();
+
+        synchronized (lock) {
+            endFlag = true;
+            lock.notifyAll();
         }
     }
 
@@ -176,25 +237,22 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         bindAddresses.clear();
 
         synchronized (lock) {
-            bindEnd = true;
+            endFlag = true;
             lock.notifyAll();
         }
     }
 
     private void rollback() {
 
-        Iterator<Map.Entry<SocketAddress, SelectableChannel>> it = boundmap.entrySet().iterator();
+        Set<SocketAddress> boundAddress = boundmap.keySet();
 
-        while (it.hasNext()) {
-            Map.Entry<SocketAddress, SelectableChannel> entry = it.next();
-
+        for (SocketAddress address : boundAddress) {
             try {
-                close(entry.getValue());
+                close(boundmap.get(address));
             } catch (IOException e) {
                 e.printStackTrace();
-            } finally {
-                it.remove();
             }
+            boundmap.remove(address);
         }
     }
 
@@ -212,8 +270,8 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         super.shutdown();
     }
 
-    @Override
-    public void shutdown() throws IOException {
-        this.shutdwon = true;
-    }
+
+    //抽象方法
+    protected abstract void acceptByProtocol(SelectionKey key);
+    protected abstract void bindByProtocol(SocketAddress address) throws IOException;
 }

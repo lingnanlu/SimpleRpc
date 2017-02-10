@@ -29,7 +29,6 @@ public class NioAdaptiveBufferSizePredictor implements NioBufferSizePredictor {
     private static final int   INDEX_DECREMENT = 1    ;
     private static final int[] SIZE_TABLE             ;
 
-
     private final int     minIndex   ;
     private final int     maxIndex   ;
     private       int     index      ;

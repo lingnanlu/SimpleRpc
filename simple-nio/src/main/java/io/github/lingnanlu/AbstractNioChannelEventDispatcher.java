@@ -8,7 +8,5 @@ import io.github.lingnanlu.spi.NioChannelEventDispatcher;
 abstract public class AbstractNioChannelEventDispatcher implements NioChannelEventDispatcher {
 
     @Override
-    public void shutdown() {
-
-    }
+    public void shutdown() {}
 }

@@ -16,9 +16,10 @@ abstract public class AbstractNioByteChannelEvent extends AbstractChannelEvent i
         super(type);
         this.channel = channel;
     }
+
     @Override
     public Channel<byte[]> getChannel() {
-        return null;
+        return channel;
     }
 
 

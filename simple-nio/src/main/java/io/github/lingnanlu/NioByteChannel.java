@@ -82,4 +82,7 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     public boolean isWritable() {
         return selectionKey.isWritable();
     }
+
+
+    protected void close0() throws IOException {}
 }

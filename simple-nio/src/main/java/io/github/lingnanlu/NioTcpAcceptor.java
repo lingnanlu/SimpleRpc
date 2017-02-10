@@ -16,6 +16,22 @@ import java.nio.channels.SocketChannel;
  */
 public class NioTcpAcceptor extends NioAcceptor {
 
+    public NioTcpAcceptor(IoHandler handler) throws IOException {
+        super(handler);
+    }
+
+    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config) throws IOException {
+        super(handler, config);
+    }
+
+    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher) throws IOException {
+        super(handler, config, dispatcher);
+    }
+
+    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory) throws IOException {
+        super(handler, config, dispatcher, predictorFactory);
+    }
+
     @Override
     protected void bindByProtocol(SocketAddress address) throws IOException {
         ServerSocketChannel ssc = ServerSocketChannel.open();
@@ -45,25 +61,10 @@ public class NioTcpAcceptor extends NioAcceptor {
         NioByteChannel channel = new NioTcpByteChannel(sc, config,
                 bufferSizePredictorFactory.newPredictor(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(), config.getMaxReadBufferSize()),
                 dispatcher);
-
         NioProcessor processor = pool.pick(channel);
         channel.setProcessor(processor);
         processor.add(channel);
     }
 
-    public NioTcpAcceptor(IoHandler handler) throws IOException {
-        super(handler);
-    }
 
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config) throws IOException {
-        super(handler, config);
-    }
-
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher) throws IOException {
-        super(handler, config, dispatcher);
-    }
-
-    public NioTcpAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory) throws IOException {
-        super(handler, config, dispatcher, predictorFactory);
-    }
 }

@@ -19,30 +19,69 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class NioProcessor extends NioReactor implements IoProcessor{
 
-    private final Queue<NioByteChannel> newChannels = new ConcurrentLinkedQueue<>();
     private final NioByteBufferAllocator allocator = new NioByteBufferAllocator();
+
     private final NioConfig config;
-    protected NioProcessorPool pool;
-    private Selector selector;
     private boolean shutdown = false;
+
+    private final Queue<NioByteChannel> newChannels = new ConcurrentLinkedQueue<>();
+    private final Queue<NioByteChannel> closingChannels = new ConcurrentLinkedQueue<>()    ;
+    private Selector selector;
 
     public NioProcessor(NioConfig config, IoHandler handler, NioChannelEventDispatcher dispatcher) throws IOException {
 
         this.config = config;
         this.handler = handler;
         this.dispatcher = dispatcher;
+
         init();
         startup();
-
     }
-
     private void init() throws IOException {
         selector = Selector.open();
+    }
+
+    private void startup() {
+        new ProcessorThread().start();
+    }
+
+    private class ProcessorThread extends Thread {
+
+        @Override
+        public void run() {
+
+            while (!shutdown) {
+
+                try {
+                    //这里,相对于原来的代码,做了简化处理。为channel注册OP_WRITE & OP_READ
+                    //processor只做两件事
+                    //1. 注册新的channel
+                    //2. 处理就绪channel
+                    //这里channel会先将内容写入到自己的queue中，然后处理写channel时，将queue中的所有东西一并写入
+                    register();
+
+                    int selected = selector.select();
+
+                    if (selected > 0) {
+                        process();
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            try {
+                shutdown0();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override
     public void shutdown() {
         this.shutdown = true;
+        selector.wakeup();
     }
 
     @Override
@@ -57,17 +96,31 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         selector.wakeup();
     }
 
-    private void startup() {
-        new ProcessorThread().start();
-    }
 
 
-
+    //--------------------------内部方法-------------------------//
     private void shutdown0() throws IOException {
-        selector.close();
+
+        //关闭那些待注册的channel
+        closingChannels.addAll(newChannels);
         newChannels.clear();
 
-        //todo 在这里关闭所有的channel
+        closeChannels();
+        selector.close();
+    }
+
+    private void closeChannels() {
+
+        for(NioByteChannel channel = closingChannels.poll(); channel != null; channel = closingChannels.poll()) {
+
+            close(channel);
+
+            fireChannelClosed(channel);
+        }
+    }
+
+    private void close(NioByteChannel channel) {
+        channel.close();
     }
 
     private void register()  {
@@ -80,7 +133,6 @@ public class NioProcessor extends NioReactor implements IoProcessor{
                 e.printStackTrace();
             }
             channel.setSelectionKey(key);
-
             fireChannelOpened(channel);
         }
     }
@@ -89,12 +141,12 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
         while (it.hasNext()) {
             NioByteChannel channel = (NioByteChannel) it.next().attachment();
-            process0(channel);
+            processEach(channel);
             it.remove();
         }
     }
 
-    private void process0(NioByteChannel channel) throws IOException {
+    private void processEach(NioByteChannel channel) throws IOException {
         if (channel.isReadable()) {
             read(channel);
         }
@@ -149,9 +201,8 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     }
 
 
-
+    //事件触发方法
     private void fireChannelRead(NioByteChannel channel, ByteBuffer buf, int length) {
-
         byte[] barr = new byte[length];
         System.arraycopy(buf.array(), 0, barr, 0, length);
         //交给Dispatcher来分发事件给IoHandler来处理， 至于在哪个线程中去处理， processor不关心， 由Dispatcher来决定
@@ -166,41 +217,8 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         dispatcher.dispatch(new NioByteChannelEvent(ChannelEventType.CHANNEL_WRITTEN, channel, handler, buf.array()));
     }
 
-    private class ProcessorThread extends Thread {
-
-        @Override
-        public void run() {
-
-            while (!shutdown) {
-
-                try {
-
-                    //这里,相对于原来的代码,做了简化处理。为channel注册OP_WRITE & OP_READ
-
-                    //processor只做两件事
-                    //1. 注册新的channel
-                    //2. 处理就绪channel
-                    //这里channel会先将内容写入到自己的queue中，然后处理写channel时，将queue中的所有东西一并写入
-                    register();
-
-                    int selected = selector.select();
-
-                    if (selected > 0) {
-                        process();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-
-            }
-
-            try {
-                shutdown0();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-
-        }
+    private void fireChannelClosed(NioByteChannel channel) {
+        dispatcher.dispatch(new NioByteChannelEvent(ChannelEventType.CHANNEL_CLOSED, channel, handler));
     }
+
 }

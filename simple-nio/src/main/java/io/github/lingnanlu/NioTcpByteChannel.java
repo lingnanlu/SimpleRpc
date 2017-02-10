@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectableChannel;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
 /**
@@ -44,9 +45,17 @@ public class NioTcpByteChannel extends NioByteChannel {
         return socketChannel;
     }
 
-
     @Override
     protected int writeTcp(ByteBuffer buf) throws IOException {
         return socketChannel.write(buf);
+    }
+
+    @Override
+    protected void close0() throws IOException {
+        SelectionKey key = getSelectionKey();
+
+        //关闭channel所要做的两件事
+        key.cancel();
+        socketChannel.close();
     }
 }

@@ -1,6 +1,6 @@
 package io.github.lingnanlu;
 
-import io.github.lingnanlu.api.NioTcpConnectorBuilder;
+import io.github.lingnanlu.api.NioConnectorBuilder;
 
 import java.io.IOException;
 
@@ -18,8 +18,7 @@ public class NioEchoClient {
     }
 
     public void start() throws IOException {
-        IoConnector connector = new NioTcpConnectorBuilder(new NioEchoClientHandler()).build();
-
+        IoConnector connector = new NioConnectorBuilder(new NioEchoClientHandler()).build();
         connector.connect(ip, port);
     }
 
