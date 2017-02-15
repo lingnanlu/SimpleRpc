@@ -13,7 +13,6 @@ public class NioEchoClientHandler extends AbstractIoHandler {
 
     @Override
     public void channelOpened(Channel<byte[]> channel) {
-        System.out.println("client Channel Opened");
         send(channel);
     }
 
@@ -32,10 +31,5 @@ public class NioEchoClientHandler extends AbstractIoHandler {
             e.printStackTrace();
         }
         send(channel);
-    }
-
-    @Override
-    public void channelWritten(Channel<byte[]> channel, byte[] bytes) {
-        System.out.println("Channel WRITE " + new String(bytes));
     }
 }

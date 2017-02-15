@@ -20,11 +20,9 @@ public class NioEchoServer {
         acceptor.bind(port);
     }
 
-    public static void main(String[] args) {
-        try {
-            new NioEchoServer(1314).start();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    public static void main(String[] args) throws IOException {
+
+        new NioEchoServer(1314).start();
+
     }
 }

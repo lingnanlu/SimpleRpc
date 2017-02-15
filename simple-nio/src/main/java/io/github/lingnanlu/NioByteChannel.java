@@ -1,6 +1,7 @@
 package io.github.lingnanlu;
 
 import io.github.lingnanlu.channel.AbstractIoByteChannel;
+import io.github.lingnanlu.channel.ChannelEvent;
 import io.github.lingnanlu.channel.ChannelState;
 import io.github.lingnanlu.config.NioConfig;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
@@ -23,7 +24,7 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
 
     protected final NioChannelEventDispatcher dispatcher;
     @Getter protected final NioBufferSizePredictor predictor;
-    @Setter protected NioProcessor processor;       //处理该channel的processor
+    @Setter protected NioProcessor processor;                   //处理该channel的processor
 
     //该缓冲的目的是防止写入过快，导致channel写缓冲区已满，未缓冲的数据丢失
     @Getter protected final Queue<ByteBuffer> writeBufferQueue = new ConcurrentLinkedQueue<>();
@@ -55,6 +56,7 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
         1. 取消相关的selectionkey
         2. 关闭innerChannel
         这里channel的关闭实际上是交给了processor来处理的，而不是由其它任意线程来关闭, processor再回调close0()来进行真正的关闭操作
+        也就是说close操作是在processor线程中执行的。
          */
         processor.remove(this);
     }
@@ -92,10 +94,14 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     public void setClosing() { state = ChannelState.CLOSING; }
     public void setClosed() { state = ChannelState.CLOSED; }
 
-
     //--------------------------method to be override-------------------------//
     public abstract SelectableChannel innerChannel();
     protected int readTcp(ByteBuffer buf) throws IOException {return 0;}
     protected int writeTcp(ByteBuffer buf) throws IOException {return 0;}
     protected void close0() throws IOException {}
+
+
+    public Queue<ChannelEvent<byte[]>> getEventQueue() {
+        return null;
+    }
 }

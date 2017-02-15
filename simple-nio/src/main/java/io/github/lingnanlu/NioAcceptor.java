@@ -30,6 +30,7 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     protected final Set<SocketAddress> unbindAddresses = new HashSet<>();
     protected final Map<SocketAddress, SelectableChannel> boundmap = new ConcurrentHashMap<>();
     protected Selector selector;
+    protected IOException exception;
 
     //辅助
     protected final Object lock = new Object();
@@ -130,12 +131,12 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     }
 
     @Override
-    public void unbind(int port) {
+    public void unbind(int port) throws IOException {
         unbind(new InetSocketAddress(port));
     }
 
     @Override
-    public void unbind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) {
+    public void unbind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException {
 
         if (firstLocalAddress == null) {
             return;
@@ -183,7 +184,7 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     }
 
 
-    private void wait0() {
+    private void wait0() throws IOException {
         while (!endFlag) {
             try {
                 lock.wait();
@@ -194,26 +195,34 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
 
         //reset endflag
         endFlag = false;
+
+        if (exception != null) {
+            IOException e = exception;
+            exception = null;
+            throw e;
+        }
     }
 
-
     private void unbind0() {
-        for (SocketAddress address : unbindAddresses) {
-            SelectableChannel ssc = boundmap.get(address);
-            try {
-                close(ssc);
-            } catch (IOException e) {
-                e.printStackTrace();
+
+        if(!unbindAddresses.isEmpty()) {
+            for (SocketAddress address : unbindAddresses) {
+                SelectableChannel ssc = boundmap.get(address);
+                try {
+                    close(ssc);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                boundmap.remove(address);
             }
 
-            boundmap.remove(address);
-        }
+            unbindAddresses.clear();
 
-        unbindAddresses.clear();
-
-        synchronized (lock) {
-            endFlag = true;
-            lock.notifyAll();
+            synchronized (lock) {
+                endFlag = true;
+                lock.notifyAll();
+            }
         }
     }
 
@@ -225,7 +234,11 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
                 bindByProtocol(address);
                 success = true;
             } catch (IOException e) {
-                e.printStackTrace();
+
+                //当绑定已经绑定过的port时，会抛出异常，但这里不能直接再向上抛出，因为
+                //acceptor执行在一个线程当中，而bind的调用者在另一个线程当中，所以无法传递给bind的调用者
+                //这时可利用一个exception，成员，通过调用者有异常
+                exception = e;
             } finally {
                 if (!success) {
                     rollback();

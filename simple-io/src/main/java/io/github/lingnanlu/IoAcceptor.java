@@ -13,9 +13,9 @@ public interface IoAcceptor extends IoReactor{
 
     void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException;
 
-    void unbind(int port);
+    void unbind(int port) throws IOException;
 
-    void unbind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses);
+    void unbind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException;
 
     Set<SocketAddress> getBoundAddresses();
 
