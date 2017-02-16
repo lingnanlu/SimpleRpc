@@ -15,6 +15,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Created by rico on 2017/1/16.
+ *
+ * 要注意这里的协作问题
+ *
+ * Client与Acceptor进行协作
+ *
+ * bindAddresses 与 unbindAddresses是共享资源，要互斥访问
+ *
+ * 当Client对bindAddresses或unbindAddresses进行操作之后，修改条件，唤醒Acceptor进行操作
  */
 abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
 
@@ -107,9 +115,29 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         bind(new InetSocketAddress(port));
     }
 
+    //客户端调用的bind代码
     @Override
     public void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException {
 
+        //这里是一个线程协作问题
+        synchronized (lock) {
+
+            /*
+            bindAddresses是共享资源，所以先加锁，对共享资源进行操作
+             */
+            addToBindAddresses(firstLocalAddress, otherLocalAddresses);
+
+            //操作完后，释放锁，等待另一线程操作
+            if (!bindAddresses.isEmpty()) {
+                selector.wakeup();
+                wait0();
+            }
+
+        }
+
+    }
+
+    private void addToBindAddresses(SocketAddress firstLocalAddress, SocketAddress[] otherLocalAddresses) {
         if (firstLocalAddress == null) {
             throw new IllegalArgumentException("Need a local address to bound");
         }
@@ -122,12 +150,6 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         }
 
         bindAddresses.addAll(localAddresses);
-
-        synchronized (lock) {
-            selector.wakeup();
-            wait0();
-        }
-
     }
 
     @Override
@@ -138,30 +160,35 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     @Override
     public void unbind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException {
 
+        synchronized (lock) {
+
+            addToUnbindAddresses(firstLocalAddress, otherLocalAddresses);
+
+            if (!unbindAddresses.isEmpty()) {
+                selector.wakeup();
+                wait0();
+            }
+
+        }
+
+    }
+
+    private void addToUnbindAddresses(SocketAddress firstLocalAddress, SocketAddress[] otherLocalAddresses) {
         if (firstLocalAddress == null) {
             return;
         }
-
         List<SocketAddress> localAddresses = new ArrayList<>();
 
         if (boundmap.containsKey(firstLocalAddress)) {
             localAddresses.add(firstLocalAddress);
         }
-
         for (SocketAddress address : otherLocalAddresses) {
             if (boundmap.containsKey(address)) {
                 localAddresses.add(address);
             }
         }
-
         unbindAddresses.addAll(localAddresses);
-
-        synchronized (lock) {
-            selector.wakeup();
-            wait0();
-        }
-
-
+        return;
     }
 
     @Override
@@ -205,53 +232,60 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
 
     private void unbind0() {
 
-        if(!unbindAddresses.isEmpty()) {
-            for (SocketAddress address : unbindAddresses) {
-                SelectableChannel ssc = boundmap.get(address);
-                try {
-                    close(ssc);
-                } catch (IOException e) {
-                    e.printStackTrace();
+        synchronized (lock) {
+            if(!unbindAddresses.isEmpty()) {
+                for (SocketAddress address : unbindAddresses) {
+                    try{
+                        if (boundmap.containsKey(address)) {
+                            System.out.println("UnBind " + address);
+                            SelectableChannel ssc = boundmap.get(address);
+                            close(ssc);
+                            boundmap.remove(address);
+                        }
+                    } catch (IOException e) {
+                        exception = e;
+                    }
                 }
 
-                boundmap.remove(address);
-            }
+                unbindAddresses.clear();
 
-            unbindAddresses.clear();
-
-            synchronized (lock) {
                 endFlag = true;
                 lock.notifyAll();
             }
+
         }
     }
 
+    //Acceptor进行bind操作的代码
     private void bind0() {
 
-        for (SocketAddress address : bindAddresses) {
-            boolean success = false;
-            try {
-                bindByProtocol(address);
-                success = true;
-            } catch (IOException e) {
-
-                //当绑定已经绑定过的port时，会抛出异常，但这里不能直接再向上抛出，因为
-                //acceptor执行在一个线程当中，而bind的调用者在另一个线程当中，所以无法传递给bind的调用者
-                //这时可利用一个exception，成员，通过调用者有异常
-                exception = e;
-            } finally {
-                if (!success) {
-                    rollback();
-                    break;
-                }
-            }
-        }
-
-        bindAddresses.clear();
-
         synchronized (lock) {
-            endFlag = true;
-            lock.notifyAll();
+            if (!bindAddresses.isEmpty()) {
+                for (SocketAddress address : bindAddresses) {
+                    System.out.println("Bind " + address.toString());
+                    boolean success = false;
+                    try {
+                        bindByProtocol(address);
+                        success = true;
+                    } catch (IOException e) {
+
+                        //当绑定已经绑定过的port时，会抛出异常，但这里不能直接再向上抛出，因为
+                        //acceptor执行在一个线程当中，而bind的调用者在另一个线程当中，所以无法传递给bind的调用者
+                        //这时可利用一个exception，成员，通过调用者有异常
+                        exception = e;
+                    } finally {
+                        if (!success) {
+                            rollback();
+                            break;
+                        }
+                    }
+                }
+
+                bindAddresses.clear();
+
+                endFlag = true;
+                lock.notifyAll();
+            }
         }
     }
 
@@ -278,6 +312,14 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     }
 
     private void shutdown0() throws IOException {
+
+        bindAddresses.clear();
+        unbindAddresses.clear();
+
+        for (SelectableChannel sc : boundmap.values()) {
+            close(sc);
+        }
+
         selector.close();
         pool.shutdown();
         super.shutdown();
