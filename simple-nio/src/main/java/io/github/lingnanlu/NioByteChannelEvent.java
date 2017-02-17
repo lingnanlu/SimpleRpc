@@ -34,6 +34,9 @@ public class NioByteChannelEvent extends AbstractNioByteChannelEvent {
                 break;
             case CHANNEL_FLUSH:
                 handler.channelFlush(channel, (byte[]) parameter);
+                break;
+            case CHANNEL_CLOSED:
+                handler.channelClosed(channel);
         }
     }
 }

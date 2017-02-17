@@ -22,4 +22,9 @@ public class NioEchoServerHandler extends AbstractIoHandler {
     public void channelWritten(Channel<byte[]> channel, byte[] bytes) {
         System.out.println("Server Written " + new String(bytes));
     }
+
+    @Override
+    public void channelClosed(Channel<byte[]> channel) {
+        System.out.println("Client has closed");
+    }
 }

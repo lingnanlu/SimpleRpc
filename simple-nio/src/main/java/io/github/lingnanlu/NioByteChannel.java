@@ -102,7 +102,6 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     protected int writeTcp(ByteBuffer buf) throws IOException {return 0;}
     protected void close0() throws IOException {}
 
-
     public Queue<ChannelEvent<byte[]>> getEventQueue() {
         return null;
     }

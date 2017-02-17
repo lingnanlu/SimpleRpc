@@ -25,6 +25,7 @@ public class NioTcpByteChannel extends NioByteChannel {
     }
 
     //这两个方法最终也是由NioProcess调用，并不是直接调用
+    //当对端Channel关闭时，会抛出异常
     @Override
     protected int readTcp(ByteBuffer buf) throws IOException {
         return socketChannel.read(buf);

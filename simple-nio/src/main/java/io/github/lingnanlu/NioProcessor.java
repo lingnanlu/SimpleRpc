@@ -258,7 +258,8 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         try {
             readBytes = read(channel, buf);
         } catch (IOException e) {
-            e.printStackTrace();
+            //when remote peer close, read operation will throw IOException, so here the channel should be closed
+            scheduleClose(channel);
         } finally {
             if (readBytes > 0) {
                 buf.clear();
@@ -279,6 +280,11 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         if (readBytes > 0) {
             channel.getPredictor().previous(readBytes);
             fireChannelRead(channel, buf, readBytes);
+        }
+
+        // read end of stream , remote peer may close channel so close channel
+        if(ret < 0) {
+            scheduleClose(channel);
         }
 
         return readBytes;
