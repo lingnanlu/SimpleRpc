@@ -38,6 +38,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         init();
         startup();
     }
+
     private void init() throws IOException {
         selector = Selector.open();
     }
@@ -57,12 +58,8 @@ public class NioProcessor extends NioReactor implements IoProcessor{
 
                     int selected = selector.select();
 
-                    //这里,相对于原来的代码,做了简化处理。为channel注册OP_WRITE & OP_READ
-                    //processor只做两件事
-                    //1. 注册新的channel
-                    //2. 处理就绪channel
-                    //这里channel会先将内容写入到自己的queue中，然后处理写channel时，将queue中的所有东西一并写入
                     register();
+
                     flush();
                     if (selected > 0) {
                         process();
@@ -88,14 +85,11 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         wakeUp();
     }
 
-    private void wakeUp() {
-        selector.wakeup();
-    }
-
     @Override
     public IoHandler getHandler() {
         return null;
     }
+
 
 
     public void flush(NioByteChannel channel) {
@@ -109,7 +103,6 @@ public class NioProcessor extends NioReactor implements IoProcessor{
 
     public void add(NioByteChannel channel) {
         newChannels.add(channel);
-
         //因为processor可能因为selector上没且就绪的channel而阻塞，所以需要唤醒它
         wakeUp();
     }
@@ -127,13 +120,16 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         selector.close();
     }
 
+    private void wakeUp() {
+        selector.wakeup();
+    }
+
     private void scheduleClose(NioByteChannel channel) {
         closingChannels.add(channel);
     }
     private void scheduleFlush(NioByteChannel channel) {
         flushingChannels.add(channel);
     }
-
 
     private void flush() {
         for(NioByteChannel channel = flushingChannels.poll(); channel != null; channel = flushingChannels.poll()) {
@@ -161,6 +157,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
             boolean finish = write(channel, buf, buf.remaining());
 
             if (finish) {
+                fireChannelWritten(channel, buf);
                 it.remove();
             } else {
                 //如果没写完，说明网络缓冲区已满， 这种做三件事
@@ -200,12 +197,10 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         return true;
     }
 
-
     private void close() {
         for(NioByteChannel channel = closingChannels.poll(); channel != null; channel = closingChannels.poll()) {
             channel.setClosing();
             close(channel);
-
             channel.setClosed();
             fireChannelClosed(channel);
         }
@@ -237,12 +232,12 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
         while (it.hasNext()) {
             NioByteChannel channel = (NioByteChannel) it.next().attachment();
-            processEach(channel);
+            process0(channel);
             it.remove();
         }
     }
 
-    private void processEach(NioByteChannel channel) throws IOException {
+    private void process0(NioByteChannel channel) throws IOException {
         if (channel.isReadable()) {
             read(channel);
         }
@@ -252,14 +247,6 @@ public class NioProcessor extends NioReactor implements IoProcessor{
             scheduleFlush(channel);
         }
     }
-
-//    private void write(NioByteChannel channel) throws IOException {
-//        Queue<ByteBuffer> writeBuffers = channel.getWriteBufferQueue();
-//        for(ByteBuffer buf = writeBuffers.poll(); buf != null; buf = writeBuffers.poll()) {
-//            channel.writeTcp(buf);
-//            fireChannelWritten(channel, buf);
-//        }
-//    }
 
     private void read(NioByteChannel channel) {
 
@@ -297,8 +284,6 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         return readBytes;
     }
 
-
-    //事件触发方法
     private void fireChannelRead(NioByteChannel channel, ByteBuffer buf, int length) {
         byte[] barr = new byte[length];
         System.arraycopy(buf.array(), 0, barr, 0, length);
@@ -319,6 +304,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     }
 
     private void fireChannelFlush(NioByteChannel channel, ByteBuffer buf) {
+        dispatcher.dispatch(new NioByteChannelEvent(ChannelEventType.CHANNEL_FLUSH, channel, handler, buf.array()));
     }
 
 }

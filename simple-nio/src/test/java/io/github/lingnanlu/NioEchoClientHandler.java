@@ -19,17 +19,26 @@ public class NioEchoClientHandler extends AbstractIoHandler {
     private void send(Channel<byte[]> channel) {
         String toSend = Integer.toString(counter.incrementAndGet());
         channel.write(toSend.getBytes());
-        System.out.println("ECHO-SENT: " + toSend);
     }
 
     @Override
     public void channelRead(Channel<byte[]> channel, byte[] bytes) {
-        System.out.println("ECHO-RECV: " + new String(bytes));
+        System.out.println("Client Read: " + new String(bytes));
         try {
             Thread.sleep(1000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
         send(channel);
+    }
+
+    @Override
+    public void channelFlush(Channel<byte[]> channel, byte[] bytes) {
+        System.out.println("Client Flush " + new String(bytes));
+    }
+
+    @Override
+    public void channelWritten(Channel<byte[]> channel, byte[] bytes) {
+        System.out.println("Client Written " + new String(bytes));
     }
 }
