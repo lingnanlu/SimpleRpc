@@ -16,7 +16,7 @@ public class NioAcceptorHandler extends AbstractIoHandler {
     public void channelRead(Channel<byte[]> channel, byte[] bytes) {
 
         for (byte b : bytes) {
-            buf.append(b);
+            buf.append((char)b);
         }
 
         if (bytes[bytes.length - 1] == LF) {

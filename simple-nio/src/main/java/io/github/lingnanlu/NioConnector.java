@@ -1,5 +1,6 @@
 package io.github.lingnanlu;
 
+import io.github.lingnanlu.channel.Channel;
 import io.github.lingnanlu.config.NioConnectorConfig;
 import io.github.lingnanlu.spi.NioBufferSizePredictorFactory;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
@@ -11,9 +12,11 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.*;
 
 /**
  * Created by rico on 2017/1/18.
@@ -27,6 +30,9 @@ public class NioConnector extends NioReactor implements IoConnector {
 
     private final Queue<SocketChannel> connectQueue = new ConcurrentLinkedQueue<>();
     private final Queue<SocketChannel> cancelQueue = new ConcurrentLinkedQueue<>();
+    //该成员是为了执行FutureTask，最终是为了将connect变为异步方法
+    private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final Map<SocketChannel, FutureTask<Channel<byte[]>>> socketToTaskMap = new HashMap<>();
     protected Selector selector;
 
     public NioConnector(IoHandler handler) throws IOException {
@@ -89,26 +95,35 @@ public class NioConnector extends NioReactor implements IoConnector {
     }
 
     @Override
-    public void connect(String ip, int port) throws IOException {
+    public Future<Channel<byte[]>> connect(String ip, int port) throws IOException {
         SocketAddress remoteAddress = new InetSocketAddress(ip, port);
-        connect(remoteAddress);
+        return connect(remoteAddress);
     }
 
     @Override
-    public void connect(SocketAddress remoteAddress) throws IOException {
-        connect(remoteAddress, null);
+    public Future<Channel<byte[]>> connect(SocketAddress remoteAddress) throws IOException {
+        return connect(remoteAddress, null);
     }
+
     @Override
-    public void connect(SocketAddress remoteAddress, SocketAddress localAddress) throws IOException {
+    public Future<Channel<byte[]>> connect(SocketAddress remoteAddress, SocketAddress localAddress) throws IOException {
         SocketChannel sc = newSocketChannel(localAddress);
 
+        //表示一个异步任务
+        FutureTask<Channel<byte[]>> futureTask = new FutureTask<Channel<byte[]>>(new DeliverToProcessorTask(sc));
+
+        //本地
         if (sc.connect(remoteAddress)) {
-            processConnectedChannel(sc);
+            executorService.submit(futureTask);
         } else {
+            //非本地
+            socketToTaskMap.put(sc, futureTask);
             connectQueue.add(sc);
             selector.wakeup();
         }
+        return futureTask;
     }
+
     /*
            注意这里的关闭方式
 
@@ -146,7 +161,7 @@ public class NioConnector extends NioReactor implements IoConnector {
        }
     }
 
-    private void processConnectedChannels() {
+    private void processConnectedChannels() throws IOException {
         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
 
         while (it.hasNext()) {
@@ -158,11 +173,11 @@ public class NioConnector extends NioReactor implements IoConnector {
             try {
                 if (sc.finishConnect()) {
                     key.cancel();
-                    processConnectedChannel(sc);
+                    FutureTask<Channel<byte[]>> futureTask = socketToTaskMap.get(sc);
+                    socketToTaskMap.remove(sc);
+                    executorService.submit(futureTask);
+                    success = true;
                 }
-                success = true;
-            } catch (IOException e) {
-                e.printStackTrace();
             } finally {
                 if (!success) {
                     cancelQueue.offer(sc);
@@ -172,12 +187,12 @@ public class NioConnector extends NioReactor implements IoConnector {
         }
     }
 
-    private void processConnectedChannel(SocketChannel channel) {
-        NioByteChannel wrapedChannel = new NioTcpByteChannel(channel, config, bufferSizePredictorFactory.newPredictor(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(), config.getMaxReadBufferSize()), dispatcher);
-        NioProcessor processor = pool.pick(wrapedChannel);
-        wrapedChannel.setProcessor(processor);
-        processor.add(wrapedChannel);
-    }
+//    private void processConnectedChannel(SocketChannel channel) {
+//        NioByteChannel wrapedChannel = new NioTcpByteChannel(channel, config, bufferSizePredictorFactory.newPredictor(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(), config.getMaxReadBufferSize()), dispatcher);
+//        NioProcessor processor = pool.pick(wrapedChannel);
+//        wrapedChannel.setProcessor(processor);
+//        processor.add(wrapedChannel);
+//    }
 
     private int connectReadyChannels() throws IOException {
         return selector.select();
@@ -197,6 +212,24 @@ public class NioConnector extends NioReactor implements IoConnector {
             SelectionKey key = sc.keyFor(selector);
             key.cancel();
             sc.close();
+        }
+    }
+
+    private class DeliverToProcessorTask implements Callable<Channel<byte[]>> {
+
+        private SocketChannel socketChannel;
+
+        public DeliverToProcessorTask(SocketChannel socketChannel) {
+            this.socketChannel = socketChannel;
+        }
+
+        @Override
+        public Channel<byte[]> call() throws Exception {
+            NioByteChannel channel = new NioTcpByteChannel(socketChannel, config, bufferSizePredictorFactory.newPredictor(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(), config.getMaxReadBufferSize()), dispatcher);
+            NioProcessor processor = pool.pick(channel);
+            channel.setProcessor(processor);
+            processor.add(channel);
+            return channel;
         }
     }
 

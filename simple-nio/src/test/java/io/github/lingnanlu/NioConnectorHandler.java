@@ -18,7 +18,7 @@ public class NioConnectorHandler extends AbstractIoHandler {
     public void channelRead(Channel<byte[]> channel, byte[] bytes) {
         System.out.println("Channel read bytes size = " + bytes.length);
 
-
+//        System.out.println(Util.bytesToStr(bytes));
         for (byte b : bytes) {
             buf.append((char) b);
         }
