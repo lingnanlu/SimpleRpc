@@ -110,16 +110,16 @@ public class NioConnector extends NioReactor implements IoConnector {
         SocketChannel sc = newSocketChannel(localAddress);
 
         //表示一个异步任务
-        FutureTask<Channel<byte[]>> futureTask = new FutureTask<Channel<byte[]>>(new DeliverToProcessorTask(sc));
+        FutureTask<Channel<byte[]>> futureTask = new FutureTask<>(new DeliverToProcessorTask(sc));
 
         //本地
         if (sc.connect(remoteAddress)) {
             executorService.submit(futureTask);
         } else {
-            //非本地
+            //非本地, 注册OP_CONNECT事件
             socketToTaskMap.put(sc, futureTask);
             connectQueue.add(sc);
-            selector.wakeup();
+            wakeUp();
         }
         return futureTask;
     }
@@ -140,11 +140,16 @@ public class NioConnector extends NioReactor implements IoConnector {
     @Override
     public void shutdown() throws IOException {
         shutdown = true;
-        selector.wakeup();
+        wakeUp();
 
     }
 
+    private void wakeUp() {
+        selector.wakeup();
+    }
+
     private SocketChannel newSocketChannel(SocketAddress localAddress) throws IOException {
+
         SocketChannel sc = SocketChannel.open();
 
         if (localAddress != null) {
@@ -162,6 +167,7 @@ public class NioConnector extends NioReactor implements IoConnector {
     }
 
     private void processConnectedChannels() throws IOException {
+
         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
 
         while (it.hasNext()) {
@@ -186,13 +192,6 @@ public class NioConnector extends NioReactor implements IoConnector {
 
         }
     }
-
-//    private void processConnectedChannel(SocketChannel channel) {
-//        NioByteChannel wrapedChannel = new NioTcpByteChannel(channel, config, bufferSizePredictorFactory.newPredictor(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(), config.getMaxReadBufferSize()), dispatcher);
-//        NioProcessor processor = pool.pick(wrapedChannel);
-//        wrapedChannel.setProcessor(processor);
-//        processor.add(wrapedChannel);
-//    }
 
     private int connectReadyChannels() throws IOException {
         return selector.select();
@@ -232,6 +231,5 @@ public class NioConnector extends NioReactor implements IoConnector {
             return channel;
         }
     }
-
 
 }

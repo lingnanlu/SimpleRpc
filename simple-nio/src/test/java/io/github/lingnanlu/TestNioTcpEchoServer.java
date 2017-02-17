@@ -4,7 +4,6 @@ import io.craft.atom.test.AvailablePortFinder;
 import io.github.lingnanlu.api.NioConnectorBuilder;
 import io.github.lingnanlu.api.NioTcpAcceptorBuilder;
 import io.github.lingnanlu.channel.Channel;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -48,7 +47,6 @@ public class TestNioTcpEchoServer {
 
 
     @Test
-    @Ignore
     public void test5000Msg() throws IOException {
         NioConnectorHandler handler = new NioConnectorHandler();
         connector = new NioConnectorBuilder(handler).build();
@@ -58,7 +56,6 @@ public class TestNioTcpEchoServer {
     }
 
     @Test
-    @Ignore
     public void test98304Msg() throws IOException {
         NioConnectorHandler handler = new NioConnectorHandler();
         connector = new NioConnectorBuilder(handler).build();
@@ -68,7 +65,6 @@ public class TestNioTcpEchoServer {
     }
 
     @Test
-    @Ignore
     public void test200000Msg() throws IOException {
         NioConnectorHandler handler = new NioConnectorHandler();
         connector = new NioConnectorBuilder(handler).build();

@@ -62,6 +62,7 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     }
 
     //参考原代码，write操作也是委托给了NioProcessor，再回调writeTcp来进行实际的操作
+    //该写操作只是把待写的内容写到缓冲队列中去，然后通知processor来进行flush
     @Override
     public boolean write(byte[] data) {
 
@@ -70,6 +71,7 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
         if(isPaused()) { throw new IllegalChannelStateException("Channel is paused");}
 
         getWriteBufferQueue().add(ByteBuffer.wrap(data));
+        processor.flush(this);
         return true;
     }
 

@@ -87,13 +87,10 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
             while (!shutdown) {
                 try {
                     int selected = selector.select();
-
                     if (selected > 0) {
                         accept();
                     }
-
                     bind0();
-
                     unbind0();
 
                 } catch (IOException e) {
@@ -129,7 +126,7 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
 
             //操作完后，释放锁，等待另一线程操作
             if (!bindAddresses.isEmpty()) {
-                selector.wakeup();
+                wakeUp();
                 wait0();
             }
 
@@ -161,14 +158,11 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     public void unbind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException {
 
         synchronized (lock) {
-
             addToUnbindAddresses(firstLocalAddress, otherLocalAddresses);
-
             if (!unbindAddresses.isEmpty()) {
-                selector.wakeup();
+                wakeUp();
                 wait0();
             }
-
         }
 
     }
@@ -193,7 +187,11 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
 
     @Override
     public void shutdown() throws IOException {
+
+        //凡是客户端调用修改了Acceptor的某种状态的，都不要忘记selector.wakeup来唤醒acceptor
         this.shutdown = true;
+        wakeUp();
+
     }
 
     @Override
@@ -325,6 +323,9 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         super.shutdown();
     }
 
+    private void wakeUp() {
+        selector.wakeup();
+    }
 
     //抽象方法
     protected abstract void acceptByProtocol(SelectionKey key);
