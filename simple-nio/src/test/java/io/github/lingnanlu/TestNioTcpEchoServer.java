@@ -97,11 +97,11 @@ public class TestNioTcpEchoServer {
                 channel.wait();     //等待processor从channel中取数据
                 acceptor.shutdown();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
         } catch (InterruptedException e) {
             e.printStackTrace();
         } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }

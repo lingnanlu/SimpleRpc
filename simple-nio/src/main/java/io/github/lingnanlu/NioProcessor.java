@@ -24,6 +24,8 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     private final NioConfig config;
     private boolean shutdown = false;
 
+    //这些组件只所以是并发的，是考虑到实体之间的协作问题
+    //当一个组件是否需要选用并发的版本时，要考虑是否有多个实体在之上进行协作
     private final Queue<NioByteChannel> newChannels = new ConcurrentLinkedQueue<>();
     private final Queue<NioByteChannel> flushingChannels = new ConcurrentLinkedQueue<>();
     private final Queue<NioByteChannel> closingChannels = new ConcurrentLinkedQueue<>();
@@ -91,7 +93,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     }
 
 
-
+    //--------------------------这些方法是提供给另一个实体来操作本实体的方法，所以这里要考虑实体之间的协作问题-------------------------//
     public void flush(NioByteChannel channel) {
         scheduleFlush(channel);
         wakeUp();

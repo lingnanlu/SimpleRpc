@@ -106,19 +106,24 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         }
     }
 
-    //接口
     @Override
-    public void bind(int port) throws IOException {
+    public void bind(int port) throws Exception {
         bind(new InetSocketAddress(port));
     }
 
-    //客户端调用的bind代码
+    /*
+      1. 参数错误， 应该给用户提示，让用户重新指定参数
+      2. bind错误，不应该停止程序，应该将异常情况交给客户端，由客户端决定是1、重新绑定。 2、得到错误信息等
+     */
     @Override
-    public void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException {
+    public void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws Exception {
+
+        if (firstLocalAddress == null) {
+            throw new Exception("the address should not be null, need a local address");
+        }
 
         //这里是一个线程协作问题
         synchronized (lock) {
-
             /*
             bindAddresses是共享资源，所以先加锁，对共享资源进行操作
              */
@@ -186,8 +191,7 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     }
 
     @Override
-    public void shutdown() throws IOException {
-
+    public void shutdown(){
         //凡是客户端调用修改了Acceptor的某种状态的，都不要忘记selector.wakeup来唤醒acceptor
         this.shutdown = true;
         wakeUp();

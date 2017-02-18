@@ -9,9 +9,8 @@ import java.util.Set;
  */
 public interface IoAcceptor extends IoReactor{
 
-    void bind(int port) throws IOException;
-
-    void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException;
+    void bind(int port) throws Exception;
+    void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws Exception;
 
     void unbind(int port) throws IOException;
 

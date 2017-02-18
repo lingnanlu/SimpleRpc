@@ -37,14 +37,13 @@ public class TestNioTcpAcceptor {
                 acceptor.bind(PORT);
             }
             Assert.fail();
-        } catch (IOException e) {
-            System.out.println("should be here");
+        }  catch (Exception e) {
         }
     }
 
     @Test
     //@Ignore
-    public void testDuplicateUnbind() throws IOException {
+    public void testDuplicateUnbind() throws Exception {
         acceptor.bind(PORT);
         acceptor.unbind(PORT);
         acceptor.unbind(PORT);
@@ -54,7 +53,7 @@ public class TestNioTcpAcceptor {
 
 
     @Test
-    public void testBindAndUnbindManyTimes() throws IOException {
+    public void testBindAndUnbindManyTimes() throws Exception {
 
         for(int i = 0; i < 10; i++) {
             acceptor.bind(PORT);
@@ -63,5 +62,16 @@ public class TestNioTcpAcceptor {
             assertEquals(0, acceptor.getBoundAddresses().size());
         }
         assertEquals(0, acceptor.getBoundAddresses().size());
+    }
+
+    @Test
+    public void testNullPort() {
+
+        try {
+            acceptor.bind(null);
+        } catch (Exception e) {
+            assertEquals("the address should not be null, need a local address", e.getMessage());
+        }
+
     }
 }
