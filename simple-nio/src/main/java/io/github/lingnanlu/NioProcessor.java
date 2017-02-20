@@ -37,16 +37,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         this.handler = handler;
         this.dispatcher = dispatcher;
 
-        try {
-            init();
-        } catch (IOException e) {
-            try {
-                selector.close();
-            } catch (IOException e1) {
-                System.out.println("selector close failed");
-            }
-            throw e;
-        }
+        init();
 
         startup();
     }
@@ -129,7 +120,10 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         newChannels.clear();
 
         close();
-        selector.close();
+
+        if (selector != null) {
+            selector.close();
+        }
     }
 
     private void wakeUp() {

@@ -56,17 +56,8 @@ public class NioConnector extends NioReactor implements IoConnector {
         this.pool = new NioProcessorPool(config, handler, dispatcher);
 
 
-        //这里的含义是：如果初始化失败，那么就关闭资源，并告诉调用者构造失败
-        try {
-            init();
-        } catch (IOException e) {
-            try {
-                selector.close();
-            } catch (IOException e1) {
-                System.out.println("selector close failed");
-            }
-            throw e;
-        }
+        //见Acceptor的处理
+        init();
 
         startup();
     }
@@ -100,7 +91,7 @@ public class NioConnector extends NioReactor implements IoConnector {
             }
 
             try {
-                shutdow0();
+                shutdown0();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -152,7 +143,7 @@ public class NioConnector extends NioReactor implements IoConnector {
            所以利用shutdown标志，标明要关闭，再在shutdown0中进行真实的组件关闭操作
      */
     @Override
-    public void shutdown() throws IOException {
+    public void shutdown() {
         shutdown = true;
         wakeUp();
 
@@ -162,6 +153,10 @@ public class NioConnector extends NioReactor implements IoConnector {
         selector.wakeup();
     }
 
+
+    //对于这里的异常，最好的方式就是将异常信息传播给上层，因为这里也不知道如何处理
+    //假如是bind错误，那么恢复模型会很麻烦，因为上层做了某种操作后，再调用该函数，则sc会又打开一遍，可见是比较复杂的。
+    //所以，简单的方案是一直传给上层告诉上层出错了即可，由上层重新启动程序
     private SocketChannel newSocketChannel(SocketAddress localAddress) throws IOException {
 
         SocketChannel sc = SocketChannel.open();
@@ -212,10 +207,14 @@ public class NioConnector extends NioReactor implements IoConnector {
     }
 
     //这里才是真正的清理资源的地方
-    private void shutdow0() throws IOException {
+    private void shutdown0() throws IOException {
         cancelQueue.clear();
         connectQueue.clear();
-        selector.close();
+
+        if (selector != null) {
+            selector.close();
+        }
+
         pool.shutdown();
         super.shutdown();
     }

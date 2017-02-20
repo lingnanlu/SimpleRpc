@@ -3,6 +3,8 @@ package io.github.lingnanlu;
 import io.github.lingnanlu.config.NioAcceptorConfig;
 import io.github.lingnanlu.spi.NioBufferSizePredictorFactory;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -26,6 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
 
+    public static final Logger LOG = LoggerFactory.getLogger(NioAcceptor.class);
+
     //组件
     protected NioProcessorPool pool;
 
@@ -44,6 +48,8 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     protected final Object lock = new Object();
     protected boolean endFlag = false;
 
+
+    //只要对象构造成功，在运行过程中，不再申请新的资源
     public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory) throws IOException {
 
         //组装
@@ -53,20 +59,12 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         this.bufferSizePredictorFactory = predictorFactory;
         this.pool = new NioProcessorPool(config, handler, dispatcher);
 
-        //初始化
-        try {
-            init();
-        } catch (IOException e) {
-            try {
-                selector.close();
-            } catch (IOException e1) {
-                System.out.println("selector close failed");
-            }
-            throw e;
-        }
+        //初始化,如果失败的话，只要告诉调用端失败即可，由调用端负责关闭资源
+        init();
 
         //启动
         startup();
+        LOG.info("[Simple-NIO] server start");
     }
 
     public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher) throws IOException {
@@ -87,6 +85,7 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
 
     private void init() throws IOException {
         selector = Selector.open();
+        LOG.info("[Simple-NIO] server init");
     }
 
     //工作流程
@@ -116,7 +115,7 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     }
 
     @Override
-    public void bind(int port) throws Exception {
+    public void bind(int port) throws IOException {
         bind(new InetSocketAddress(port));
     }
 
@@ -125,27 +124,24 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
       2. bind错误，不应该停止程序，应该将异常情况交给客户端，由客户端决定是1、重新绑定。 2、得到错误信息等
      */
     @Override
-    public void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws Exception {
+    public void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException {
 
-        if (firstLocalAddress == null) {
-            throw new Exception("the address should not be null, need a local address");
-        }
-
-        //这里是一个线程协作问题
-        synchronized (lock) {
+        if (firstLocalAddress != null) {
+            //这里是一个线程协作问题
+            synchronized (lock) {
             /*
             bindAddresses是共享资源，所以先加锁，对共享资源进行操作
              */
-            addToBindAddresses(firstLocalAddress, otherLocalAddresses);
+                addToBindAddresses(firstLocalAddress, otherLocalAddresses);
 
-            //操作完后，释放锁，等待另一线程操作
-            if (!bindAddresses.isEmpty()) {
-                wakeUp();
-                wait0();
+                //操作完后，释放锁，等待另一线程操作
+                if (!bindAddresses.isEmpty()) {
+                    wakeUp();
+                    wait0();
+                }
+
             }
-
         }
-
     }
 
     private void addToBindAddresses(SocketAddress firstLocalAddress, SocketAddress[] otherLocalAddresses) {
@@ -248,7 +244,6 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
                 for (SocketAddress address : unbindAddresses) {
                     try{
                         if (boundmap.containsKey(address)) {
-                            System.out.println("UnBind " + address);
                             SelectableChannel ssc = boundmap.get(address);
                             close(ssc);
                             boundmap.remove(address);
@@ -273,11 +268,11 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         synchronized (lock) {
             if (!bindAddresses.isEmpty()) {
                 for (SocketAddress address : bindAddresses) {
-                    System.out.println("Bind " + address.toString());
                     boolean success = false;
                     try {
                         bindByProtocol(address);
                         success = true;
+                        LOG.info("[Simple-NIO] bind successs " + address);
                     } catch (IOException e) {
 
                         //当绑定已经绑定过的port时，会抛出异常，但这里不能直接再向上抛出，因为
@@ -331,7 +326,10 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
             close(sc);
         }
 
-        selector.close();
+        //关闭时要检查资源，因为构造过程中可能构造了一半就失败了，这里要关闭那些已打开的资源
+        if (selector != null) {
+            selector.close();
+        }
         pool.shutdown();
         super.shutdown();
     }
