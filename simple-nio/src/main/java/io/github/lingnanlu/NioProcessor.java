@@ -37,7 +37,17 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         this.handler = handler;
         this.dispatcher = dispatcher;
 
-        init();
+        try {
+            init();
+        } catch (IOException e) {
+            try {
+                selector.close();
+            } catch (IOException e1) {
+                System.out.println("selector close failed");
+            }
+            throw e;
+        }
+
         startup();
     }
 

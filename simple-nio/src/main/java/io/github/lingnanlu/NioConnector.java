@@ -44,6 +44,8 @@ public class NioConnector extends NioReactor implements IoConnector {
     public NioConnector(IoHandler handler, NioConnectorConfig config, NioChannelEventDispatcher dispatcher) throws IOException {
         this(handler, config, dispatcher, new NioAdaptiveBufferSizePredictorFactory());
     }
+
+    //构造函数抛出异常说明对象构造失败
     public NioConnector(IoHandler handler, NioConnectorConfig config, NioChannelEventDispatcher dispatcher, NioBufferSizePredictorFactory predictorFactory) throws IOException {
 
         //构造
@@ -53,7 +55,19 @@ public class NioConnector extends NioReactor implements IoConnector {
         this.bufferSizePredictorFactory = predictorFactory;
         this.pool = new NioProcessorPool(config, handler, dispatcher);
 
-        init();
+
+        //这里的含义是：如果初始化失败，那么就关闭资源，并告诉调用者构造失败
+        try {
+            init();
+        } catch (IOException e) {
+            try {
+                selector.close();
+            } catch (IOException e1) {
+                System.out.println("selector close failed");
+            }
+            throw e;
+        }
+
         startup();
     }
 

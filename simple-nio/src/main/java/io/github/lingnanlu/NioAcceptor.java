@@ -54,7 +54,16 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         this.pool = new NioProcessorPool(config, handler, dispatcher);
 
         //初始化
-        init();
+        try {
+            init();
+        } catch (IOException e) {
+            try {
+                selector.close();
+            } catch (IOException e1) {
+                System.out.println("selector close failed");
+            }
+            throw e;
+        }
 
         //启动
         startup();
