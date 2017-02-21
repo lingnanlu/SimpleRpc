@@ -35,4 +35,9 @@ abstract public class AbstractIoHandler implements IoHandler {
     public void channelWritten(Channel<byte[]> channel, byte[] bytes) {
 
     }
+
+    @Override
+    public void channelThrown(Channel<byte[]> channel, Exception e) {
+
+    }
 }

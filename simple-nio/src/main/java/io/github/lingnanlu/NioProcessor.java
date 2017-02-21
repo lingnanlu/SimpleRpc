@@ -3,6 +3,8 @@ package io.github.lingnanlu;
 import io.github.lingnanlu.channel.ChannelEventType;
 import io.github.lingnanlu.config.NioConfig;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -18,6 +20,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Created by rico on 2017/1/16.
  */
 public class NioProcessor extends NioReactor implements IoProcessor{
+
+    public static final Logger LOG = LoggerFactory.getLogger(NioProcessor.class);
 
     private final NioByteBufferAllocator allocator = new NioByteBufferAllocator();
 
@@ -37,9 +41,12 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         this.handler = handler;
         this.dispatcher = dispatcher;
 
-        init();
+        LOG.info("[Simple-NIO] processor assemble");
 
+        init();
+        LOG.info("[Simple-NIO] processor init");
         startup();
+        LOG.info("[Simple-NIO] processor start");
     }
 
     private void init() throws IOException {
@@ -70,14 +77,14 @@ public class NioProcessor extends NioReactor implements IoProcessor{
 
                     close();
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    LOG.info("[Simple-NIO] process failed", e);
                 }
             }
 
             try {
                 shutdown0();
             } catch (IOException e) {
-                e.printStackTrace();
+                LOG.info("[Simple-NIO] shutdown failed", e);
             }
         }
     }
@@ -142,12 +149,20 @@ public class NioProcessor extends NioReactor implements IoProcessor{
             if (channel.isClosed() || channel.isClosing()) {
                 continue;
             } else {
-                flush0(channel);
+                try {
+                    flush0(channel);
+                } catch (IOException e) {
+                    LOG.info("[Simple-NIO] Catch flush exception and fire it " + e);
+
+                    fireChannelThrown(channel, e);
+
+                    scheduleClose(channel);
+                }
             }
         }
     }
 
-    private void flush0(NioByteChannel channel) {
+    private void flush0(NioByteChannel channel) throws IOException {
 
         Queue<ByteBuffer> writeBuffers = channel.getWriteBufferQueue();
 
@@ -190,25 +205,28 @@ public class NioProcessor extends NioReactor implements IoProcessor{
 
     }
 
-    private boolean write(NioByteChannel channel, ByteBuffer buf, int remainLength) {
+    private boolean write(NioByteChannel channel, ByteBuffer buf, int remainLength) throws IOException {
 
-        try {
-            int writtenBytes = channel.writeTcp(buf);
-            if (writtenBytes < remainLength) {
-                return false;
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
+        int writtenBytes = channel.writeTcp(buf);
+        if (writtenBytes < remainLength) {
+            return false;
         }
         return true;
     }
 
     private void close() {
         for(NioByteChannel channel = closingChannels.poll(); channel != null; channel = closingChannels.poll()) {
+
+            if (channel.isClosed()) {
+                LOG.info("[Simple-NIO] skip close because it is already closed " + channel);
+                continue;
+            }
             channel.setClosing();
+            LOG.info("[Simple-NIO] closing channel = " + channel);
             close(channel);
             channel.setClosed();
             fireChannelClosed(channel);
+            LOG.info("[Simple-NIO] closed channel = " + channel);
         }
     }
 
@@ -216,25 +234,23 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         try {
             channel.close0();
         } catch (IOException e) {
-            e.printStackTrace();
+            LOG.info("[Simple-NIO] catch close exception and fire it");
+            fireChannelThrown(channel, e);
         }
     }
 
-    private void register()  {
+
+    //register , flush , process, close等异常，除了做必要的资源清理外， 统一在run中报告
+    private void register() throws ClosedChannelException {
         for(NioByteChannel channel = newChannels.poll(); channel != null; channel = newChannels.poll()) {
             SelectableChannel sc = channel.innerChannel();
-            SelectionKey key = null;
-            try {
-                key = sc.register(selector, SelectionKey.OP_READ, channel);
-            } catch (ClosedChannelException e) {
-                e.printStackTrace();
-            }
+            SelectionKey key = sc.register(selector, SelectionKey.OP_READ, channel);
             channel.setSelectionKey(key);
             fireChannelOpened(channel);
         }
     }
 
-    private void process() throws IOException {
+    private void process() {
         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
         while (it.hasNext()) {
             NioByteChannel channel = (NioByteChannel) it.next().attachment();
@@ -243,12 +259,14 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         }
     }
 
-    private void process0(NioByteChannel channel) throws IOException {
+    private void process0(NioByteChannel channel) {
         if (channel.isReadable()) {
+            LOG.info("[Simple-NIO] read event process on channel = " + channel);
             read(channel);
         }
 
         if (channel.isWritable()) {
+            LOG.info("[Simple-NIO] write event process on channel = " + channel);
             //如果可写，再scheduleFlush
             scheduleFlush(channel);
         }
@@ -264,6 +282,11 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         try {
             readBytes = read(channel, buf);
         } catch (IOException e) {
+
+            //当读channel异常时，触发事件
+            LOG.info("[Simple-NIO] catch read exception and fire it");
+            fireChannelThrown(channel, e);
+
             //when remote peer close, read operation will throw IOException, so here the channel should be closed
             scheduleClose(channel);
         } finally {
@@ -286,6 +309,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         if (readBytes > 0) {
             channel.getPredictor().previous(readBytes);
             fireChannelRead(channel, buf, readBytes);
+            LOG.info("[Simple-NIO] actual readbytes = " + readBytes);
         }
 
         // read end of stream , remote peer may close channel so close channel
@@ -318,5 +342,10 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     private void fireChannelFlush(NioByteChannel channel, ByteBuffer buf) {
         dispatcher.dispatch(new NioByteChannelEvent(ChannelEventType.CHANNEL_FLUSH, channel, handler, buf.array()));
     }
+
+    private void fireChannelThrown(NioByteChannel channel, IOException e) {
+        dispatcher.dispatch(new NioByteChannelEvent(ChannelEventType.CHANNEL_THROWN, channel, handler, e));
+    }
+
 
 }

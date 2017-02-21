@@ -3,12 +3,14 @@ package io.github.lingnanlu.channel;
 import io.github.lingnanlu.IoConfig;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 /**
  * Created by rico on 2017/1/13.
  *
  * 和Io相关的Channel， 所以属性是一些缓冲区相关
  */
+@ToString(callSuper = true, of = {})
 public abstract class AbstractIoChannel extends AbstractChannel {
 
     @Getter @Setter protected long lastIoTime = System.currentTimeMillis();

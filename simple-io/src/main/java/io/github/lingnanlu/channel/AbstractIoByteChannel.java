@@ -1,10 +1,14 @@
 package io.github.lingnanlu.channel;
 
+import lombok.ToString;
+
 /**
  * Created by rico on 2017/1/13.
  *
  * 只是特例化为Byte Channel
  */
+
+@ToString(callSuper = true, of = {})
 abstract public class AbstractIoByteChannel extends AbstractIoChannel implements Channel<byte[]> {
 
     public AbstractIoByteChannel() {

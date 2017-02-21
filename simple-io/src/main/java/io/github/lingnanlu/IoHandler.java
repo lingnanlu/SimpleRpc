@@ -18,4 +18,6 @@ public interface IoHandler {
     void channelFlush(Channel<byte[]> channel, byte[] bytes);
 
     void channelWritten(Channel<byte[]> channel, byte[] bytes);
+
+    void channelThrown(Channel<byte[]> channel, Exception e);
 }

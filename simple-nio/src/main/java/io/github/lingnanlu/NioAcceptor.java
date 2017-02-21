@@ -58,13 +58,16 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         this.dispatcher = dispatcher;
         this.bufferSizePredictorFactory = predictorFactory;
         this.pool = new NioProcessorPool(config, handler, dispatcher);
+        LOG.info("[Simple-NIO] acceptor assemble");
+
 
         //初始化,如果失败的话，只要告诉调用端失败即可，由调用端负责关闭资源
         init();
+        LOG.info("[Simple-NIO] acceptor init");
 
         //启动
         startup();
-        LOG.info("[Simple-NIO] server start");
+        LOG.info("[Simple-NIO] acceptor start");
     }
 
     public NioAcceptor(IoHandler handler, NioAcceptorConfig config, NioChannelEventDispatcher dispatcher) throws IOException {
@@ -85,7 +88,6 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
 
     private void init() throws IOException {
         selector = Selector.open();
-        LOG.info("[Simple-NIO] server init");
     }
 
     //工作流程
@@ -100,16 +102,18 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
                     }
                     bind0();
                     unbind0();
-
                 } catch (IOException e) {
-                    e.printStackTrace();
+
+                    //该异常不应该通知给调用端， 因为调用端也不知到如何处理
+                    //当然也可以通知调用端，调用端所做的只是输出异常信息
+                    LOG.info("[Simple-NIO] Unexpected exception", e);
                 }
             }
 
             try {
                 shutdown0();
             } catch (IOException e) {
-                e.printStackTrace();
+                LOG.info("[Simple-NIO] shutdown exception", e);
             }
         }
     }
@@ -119,10 +123,7 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         bind(new InetSocketAddress(port));
     }
 
-    /*
-      1. 参数错误， 应该给用户提示，让用户重新指定参数
-      2. bind错误，不应该停止程序，应该将异常情况交给客户端，由客户端决定是1、重新绑定。 2、得到错误信息等
-     */
+    //当bind错误时，这里不做任何处理，仅仅通知用户即可
     @Override
     public void bind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException {
 
@@ -145,9 +146,6 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     }
 
     private void addToBindAddresses(SocketAddress firstLocalAddress, SocketAddress[] otherLocalAddresses) {
-        if (firstLocalAddress == null) {
-            throw new IllegalArgumentException("Need a local address to bound");
-        }
 
         List<SocketAddress> localAddresses = new ArrayList<>();
         bindAddresses.add(firstLocalAddress);
@@ -164,23 +162,23 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         unbind(new InetSocketAddress(port));
     }
 
+    //同bind， 当unbind异常时，通知调用者
     @Override
     public void unbind(SocketAddress firstLocalAddress, SocketAddress... otherLocalAddresses) throws IOException {
 
-        synchronized (lock) {
-            addToUnbindAddresses(firstLocalAddress, otherLocalAddresses);
-            if (!unbindAddresses.isEmpty()) {
-                wakeUp();
-                wait0();
+        if (firstLocalAddress != null) {
+            synchronized (lock) {
+                addToUnbindAddresses(firstLocalAddress, otherLocalAddresses);
+                if (!unbindAddresses.isEmpty()) {
+                    wakeUp();
+                    wait0();
+                }
             }
         }
-
     }
 
     private void addToUnbindAddresses(SocketAddress firstLocalAddress, SocketAddress[] otherLocalAddresses) {
-        if (firstLocalAddress == null) {
-            return;
-        }
+
         List<SocketAddress> localAddresses = new ArrayList<>();
 
         if (boundmap.containsKey(firstLocalAddress)) {
@@ -208,7 +206,9 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         return new HashSet<>(boundmap.keySet());
     }
 
-    private void accept() {
+    //这里是私有方法，所以异常不会传递到上一层，所以处理起来可以比较灵活
+    //这里将所有的异常集中在run()中报告
+    private void accept() throws IOException {
         Iterator<SelectionKey> it = selector.selectedKeys().iterator();
         while (it.hasNext()) {
             SelectionKey key = it.next();
@@ -223,7 +223,7 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
             try {
                 lock.wait();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                throw new IOException(e);
             }
         }
 
@@ -247,7 +247,9 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
                             SelectableChannel ssc = boundmap.get(address);
                             close(ssc);
                             boundmap.remove(address);
+                            LOG.info("[Simple-NIO] unbind address = " + address);
                         }
+
                     } catch (IOException e) {
                         exception = e;
                     }
@@ -303,7 +305,7 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
             try {
                 close(boundmap.get(address));
             } catch (IOException e) {
-                e.printStackTrace();
+                LOG.info("[Simple-NIO] Rollback bind operation exception", e);
             }
             boundmap.remove(address);
         }
@@ -313,7 +315,6 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
 
         SelectionKey key = ssc.keyFor(selector);
         key.cancel();
-
         ssc.close();
     }
 
@@ -332,6 +333,7 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
         }
         pool.shutdown();
         super.shutdown();
+        LOG.info("[Simple-NIO] server acceptor shutdown success");
     }
 
     private void wakeUp() {
@@ -339,6 +341,6 @@ abstract public class NioAcceptor extends NioReactor implements IoAcceptor {
     }
 
     //抽象方法
-    protected abstract void acceptByProtocol(SelectionKey key);
+    protected abstract void acceptByProtocol(SelectionKey key) throws IOException;
     protected abstract void bindByProtocol(SocketAddress address) throws IOException;
 }

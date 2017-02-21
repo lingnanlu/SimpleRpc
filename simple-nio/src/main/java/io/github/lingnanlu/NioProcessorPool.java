@@ -3,6 +3,8 @@ package io.github.lingnanlu;
 import io.github.lingnanlu.config.NioConfig;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
 import lombok.Getter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
@@ -10,6 +12,8 @@ import java.io.IOException;
  * Created by rico on 2017/1/16.
  */
 public class NioProcessorPool {
+
+    public static final Logger LOG = LoggerFactory.getLogger(NioProcessorPool.class);
 
     @Getter private final NioProcessor[] pool;
     @Getter private final NioConfig config;
@@ -47,7 +51,7 @@ public class NioProcessorPool {
             try {
                 pool[i] = new NioProcessor(config, handler, dispatcher);
             } catch (IOException e) {
-                e.printStackTrace();
+                LOG.info("[Simple-NIO] processor created failed");
             }
         }
     }

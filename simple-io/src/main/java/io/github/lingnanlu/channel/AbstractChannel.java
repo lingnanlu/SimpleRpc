@@ -1,6 +1,7 @@
 package io.github.lingnanlu.channel;
 
 import lombok.Getter;
+import lombok.ToString;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -11,6 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * todo 为什么这里不直接实现Channel
  */
+@ToString(of = {"id", "state"})
 abstract public class AbstractChannel {
 
     @Getter protected long id;

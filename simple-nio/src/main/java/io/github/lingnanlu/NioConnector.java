@@ -4,6 +4,8 @@ import io.github.lingnanlu.channel.Channel;
 import io.github.lingnanlu.config.NioConnectorConfig;
 import io.github.lingnanlu.spi.NioBufferSizePredictorFactory;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -22,6 +24,8 @@ import java.util.concurrent.*;
  * Created by rico on 2017/1/18.
  */
 public class NioConnector extends NioReactor implements IoConnector {
+
+    public static final Logger LOG = LoggerFactory.getLogger(NioConnector.class);
 
     protected NioProcessorPool pool;
 
@@ -55,11 +59,15 @@ public class NioConnector extends NioReactor implements IoConnector {
         this.bufferSizePredictorFactory = predictorFactory;
         this.pool = new NioProcessorPool(config, handler, dispatcher);
 
-
+        LOG.info("[Simple-NIO] connector assemble");
         //见Acceptor的处理
         init();
 
+        LOG.info("[Simple-NIO] connector init");
+
         startup();
+
+        LOG.info("[Simple-NIO] connector startup");
     }
 
     /*
@@ -86,14 +94,14 @@ public class NioConnector extends NioReactor implements IoConnector {
                     }
                     closeConnectFailedChannels();
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    LOG.info("[Simple-NIO] unexpected exception", e);
                 }
             }
 
             try {
                 shutdown0();
             } catch (IOException e) {
-                e.printStackTrace();
+                LOG.info("[Simple-NIO] shutdown failed", e);
             }
 
         }
@@ -117,9 +125,11 @@ public class NioConnector extends NioReactor implements IoConnector {
         //表示一个异步任务
         FutureTask<Channel<byte[]>> futureTask = new FutureTask<>(new DeliverToProcessorTask(sc));
 
+
         //本地
         if (sc.connect(remoteAddress)) {
             executorService.submit(futureTask);
+            LOG.info("[Simple-NIO] established local connection");
         } else {
             //非本地, 注册OP_CONNECT事件
             socketToTaskMap.put(sc, futureTask);
@@ -169,9 +179,15 @@ public class NioConnector extends NioReactor implements IoConnector {
         return sc;
     }
 
-    private void registerNewConnectChannel() throws ClosedChannelException {
+    private void registerNewConnectChannel() throws IOException {
        for(SocketChannel sc = connectQueue.poll(); sc != null; sc = connectQueue.poll()) {
-           sc.register(selector, SelectionKey.OP_CONNECT);
+           try {
+               sc.register(selector, SelectionKey.OP_CONNECT);
+           } catch (ClosedChannelException e) {
+               close(sc);
+               LOG.info("[Simple-NIO] register connect event failed ", e);
+               throw e;
+           }
        }
     }
 
@@ -187,6 +203,7 @@ public class NioConnector extends NioReactor implements IoConnector {
             boolean success = false;
             try {
                 if (sc.finishConnect()) {
+                    LOG.info("[Simple-NIO] established remote connect");
                     key.cancel();
                     FutureTask<Channel<byte[]>> futureTask = socketToTaskMap.get(sc);
                     socketToTaskMap.remove(sc);
@@ -202,6 +219,22 @@ public class NioConnector extends NioReactor implements IoConnector {
         }
     }
 
+    private void close(SocketChannel sc)  {
+
+        LOG.info("[Simple-NIO] close socket channel " + sc);
+
+        SelectionKey key = sc.keyFor(selector);
+
+        if (key != null) {
+            key.cancel();
+        }
+
+        try {
+            sc.close();
+        } catch (IOException e) {
+            LOG.info("[Simple-NIO] channel close failed", e);
+        }
+    }
     private int connectReadyChannels() throws IOException {
         return selector.select();
     }
@@ -219,11 +252,9 @@ public class NioConnector extends NioReactor implements IoConnector {
         super.shutdown();
     }
 
-    private void closeConnectFailedChannels() throws IOException {
+    private void closeConnectFailedChannels() {
         for(SocketChannel sc = cancelQueue.poll(); sc != null; sc  = cancelQueue.poll()) {
-            SelectionKey key = sc.keyFor(selector);
-            key.cancel();
-            sc.close();
+            close(sc);
         }
     }
 

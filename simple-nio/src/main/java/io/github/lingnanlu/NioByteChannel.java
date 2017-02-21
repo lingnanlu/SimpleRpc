@@ -7,6 +7,7 @@ import io.github.lingnanlu.config.NioConfig;
 import io.github.lingnanlu.spi.NioChannelEventDispatcher;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -20,6 +21,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 /**
  * Created by rico on 2017/1/16.
  */
+
+@ToString(callSuper = true, of = {"localAddress", "remoteAddress"})
 abstract public class NioByteChannel extends AbstractIoByteChannel{
 
     protected final NioChannelEventDispatcher dispatcher;

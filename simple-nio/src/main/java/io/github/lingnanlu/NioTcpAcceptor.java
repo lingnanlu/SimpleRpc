@@ -43,18 +43,23 @@ public class NioTcpAcceptor extends NioAcceptor {
         boundmap.put(address, ssc);
     }
 
+    //protected方法的异常也不会传递的客户端，所以，这里是在run中集中报告错误
     @Override
-    protected void acceptByProtocol(SelectionKey key) {
+    protected void acceptByProtocol(SelectionKey key) throws IOException {
         ServerSocketChannel ssc = (ServerSocketChannel) key.channel();
         SocketChannel sc = null;
         try {
             sc = ssc.accept();
             sc.configureBlocking(false);
-
             dispatchToProcessor(sc);
         } catch (IOException e) {
-            e.printStackTrace();
+            //在这一层出现问题时，该层可做的就是关闭socketchannel,然后通知给上层，由上层将错误打的Log中
+            //但这里也可以直接打Log，我感觉两种方法都可以
+            close(sc);
+            throw e;
         }
+
+
     }
 
     private void dispatchToProcessor(SocketChannel sc) {
@@ -64,6 +69,15 @@ public class NioTcpAcceptor extends NioAcceptor {
         NioProcessor processor = pool.pick(channel);
         channel.setProcessor(processor);
         processor.add(channel);
+    }
+
+    private void close(SocketChannel sc) {
+        if(sc == null) return;
+        try {
+            sc.close();
+        } catch (IOException e) {
+            LOG.info("[Simple-NIO] close exception", e);
+        }
     }
 
 
