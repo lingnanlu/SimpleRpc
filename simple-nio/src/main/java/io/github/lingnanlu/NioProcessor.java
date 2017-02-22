@@ -24,6 +24,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     public static final Logger LOG = LoggerFactory.getLogger(NioProcessor.class);
 
     private final NioByteBufferAllocator allocator = new NioByteBufferAllocator();
+    private final NioChannelIdleTimer idleTimer;
 
     private final NioConfig config;
     private boolean shutdown = false;
@@ -35,11 +36,12 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     private final Queue<NioByteChannel> closingChannels = new ConcurrentLinkedQueue<>();
     private Selector selector;
 
-    public NioProcessor(NioConfig config, IoHandler handler, NioChannelEventDispatcher dispatcher) throws IOException {
+    public NioProcessor(NioConfig config, IoHandler handler, NioChannelEventDispatcher dispatcher, NioChannelIdleTimer idleTimer) throws IOException {
 
         this.config = config;
         this.handler = handler;
         this.dispatcher = dispatcher;
+        this.idleTimer = idleTimer;
 
         LOG.info("[Simple-NIO] processor assemble");
 
@@ -216,7 +218,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
 
     private void close() {
         for(NioByteChannel channel = closingChannels.poll(); channel != null; channel = closingChannels.poll()) {
-
+            idleTimer.remove(channel);
             if (channel.isClosed()) {
                 LOG.info("[Simple-NIO] skip close because it is already closed " + channel);
                 continue;
@@ -246,6 +248,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
             SelectableChannel sc = channel.innerChannel();
             SelectionKey key = sc.register(selector, SelectionKey.OP_READ, channel);
             channel.setSelectionKey(key);
+            idleTimer.add(channel);
             fireChannelOpened(channel);
         }
     }
@@ -260,6 +263,9 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     }
 
     private void process0(NioByteChannel channel) {
+
+        channel.setLastIoTime(System.currentTimeMillis());
+
         if (channel.isReadable()) {
             LOG.info("[Simple-NIO] read event process on channel = " + channel);
             read(channel);

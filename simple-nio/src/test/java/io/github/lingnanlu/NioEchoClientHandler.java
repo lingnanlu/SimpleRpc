@@ -29,7 +29,7 @@ public class NioEchoClientHandler extends AbstractIoHandler {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        send(channel);
+       // send(channel);
     }
 
     @Override

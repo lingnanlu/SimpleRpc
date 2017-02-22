@@ -41,6 +41,9 @@ public class NioByteChannelEvent extends AbstractNioByteChannelEvent {
             case CHANNEL_THROWN:
                 handler.channelThrown(channel, (Exception) parameter);
                 break;
+            case CHANNEL_IDLE:
+                handler.channelIdle(channel);
+                break;
             default:
                 throw new IllegalArgumentException("Unknown event type: " + type);
         }

@@ -19,6 +19,7 @@ public class NioProcessorPool {
     @Getter private final NioConfig config;
     @Getter private final NioChannelEventDispatcher dispatcher;
     @Getter private final IoHandler handler;
+    @Getter private final NioChannelIdleTimer idleTimer;
 
     public NioProcessorPool(NioConfig config, IoHandler handler, NioChannelEventDispatcher dispatcher) {
 
@@ -26,6 +27,7 @@ public class NioProcessorPool {
         this.config = config;
         this.dispatcher = dispatcher;
         this.handler = handler;
+        this.idleTimer = new NioChannelIdleTimer(dispatcher, handler, config.getIoTimeoutInMillis());
 
         fill(pool);
 
@@ -49,7 +51,7 @@ public class NioProcessorPool {
 
         for (int i = 0; i < pool.length; i++) {
             try {
-                pool[i] = new NioProcessor(config, handler, dispatcher);
+                pool[i] = new NioProcessor(config, handler, dispatcher, idleTimer);
             } catch (IOException e) {
                 LOG.info("[Simple-NIO] processor created failed");
             }

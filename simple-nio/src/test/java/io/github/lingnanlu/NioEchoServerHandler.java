@@ -27,4 +27,10 @@ public class NioEchoServerHandler extends AbstractIoHandler {
     public void channelClosed(Channel<byte[]> channel) {
         System.out.println("Client has closed");
     }
+
+
+    @Override
+    public void channelIdle(Channel<byte[]> channel) {
+        System.out.println("channel timeout");
+    }
 }
