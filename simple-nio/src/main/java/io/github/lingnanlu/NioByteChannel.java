@@ -34,6 +34,7 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     @Getter protected SocketAddress localAddress;
     @Getter @Setter protected SocketAddress remoteAddress;
     @Getter @Setter protected SelectionKey selectionKey;        //表示该channel在selector注册的Key
+    protected final Queue<ChannelEvent<byte[]>> eventQueue = new ConcurrentLinkedQueue<>();
 
     protected final Object lock = new Object();
 
@@ -41,6 +42,14 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
         super(config.getMinReadBufferSize(), config.getDefaultReadBufferSize(),config.getMaxReadBufferSize());
         this.predictor = predictor;
         this.dispatcher = dispatcher;
+    }
+
+    public void add(ChannelEvent<byte[]> event) {
+        eventQueue.offer(event);
+    }
+
+    public Queue<ChannelEvent<byte[]>> getEventQueue() {
+        return eventQueue;
     }
 
     @Override
@@ -105,7 +114,5 @@ abstract public class NioByteChannel extends AbstractIoByteChannel{
     protected int writeTcp(ByteBuffer buf) throws IOException {return 0;}
     protected void close0() throws IOException {}
 
-    public Queue<ChannelEvent<byte[]>> getEventQueue() {
-        return null;
-    }
+
 }

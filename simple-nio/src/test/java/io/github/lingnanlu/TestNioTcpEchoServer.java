@@ -22,6 +22,7 @@ public class TestNioTcpEchoServer {
     private IoConnector connector;
 
 
+
     @Test
     public void testHelloMsg() {
         try {
@@ -86,7 +87,7 @@ public class TestNioTcpEchoServer {
 
     private void test(String msg, int port) {
         try {
-            IoAcceptor acceptor = new NioTcpAcceptorBuilder(new NioAcceptorHandler()).build();
+            IoAcceptor acceptor = new NioTcpAcceptorBuilder(new NioAcceptorHandler()).dispatcher(new NioOrderedThreadPoolChannelEventDispatcher()).build();
             acceptor.bind(port);
             Future<Channel<byte[]>> future = connector.connect("127.0.0.1", port);
 

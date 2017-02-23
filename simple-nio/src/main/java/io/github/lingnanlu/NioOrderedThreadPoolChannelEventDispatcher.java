@@ -18,9 +18,10 @@ public class NioOrderedThreadPoolChannelEventDispatcher extends AbstractNioChann
 
 
     public NioOrderedThreadPoolChannelEventDispatcher() {
-        this(Runtime.getRuntime().availableProcessors() * 8, Integer.MAX_VALUE);
+        this(Runtime.getRuntime().availableProcessors() * 8);
     }
-    public NioOrderedThreadPoolChannelEventDispatcher(int totalEventSize, int executorSize) {
+
+    public NioOrderedThreadPoolChannelEventDispatcher(int executorSize) {
 
         if (executorSize <= 0) {
             executorSize = Runtime.getRuntime().availableProcessors() * 8;
@@ -28,7 +29,6 @@ public class NioOrderedThreadPoolChannelEventDispatcher extends AbstractNioChann
 
         this.channelQueue = new LinkedBlockingQueue<>();
         this.executor = Executors.newFixedThreadPool(executorSize);
-
 
         //启动多个工作者线程来分发事件
         for(int i = 0; i < executorSize; i++) {
@@ -38,16 +38,16 @@ public class NioOrderedThreadPoolChannelEventDispatcher extends AbstractNioChann
 
     @Override
     public void dispatch(ChannelEvent<byte[]> event) {
-
+        NioByteChannel channel = (NioByteChannel) event.getChannel();
+        channel.add(event);
+        channelQueue.offer(channel);
     }
 
 
     private class Worker implements Runnable{
 
         private void fire(NioByteChannel channel) {
-
             Queue<ChannelEvent<byte[]>> q = channel.getEventQueue();
-
             for(ChannelEvent<byte[]> event = q.poll(); event != null; event = q.poll()) {
                 event.fire();
             }
