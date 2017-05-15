@@ -28,7 +28,7 @@ public class NioProcessor extends NioReactor implements IoProcessor{
 
     private final NioConfig config;
     private boolean shutdown = false;
-
+    private final String name;
     //这些组件只所以是并发的，是考虑到实体之间的协作问题
     //当一个组件是否需要选用并发的版本时，要考虑是否有多个实体在之上进行协作
     private final Queue<NioByteChannel> newChannels = new ConcurrentLinkedQueue<>();
@@ -36,13 +36,13 @@ public class NioProcessor extends NioReactor implements IoProcessor{
     private final Queue<NioByteChannel> closingChannels = new ConcurrentLinkedQueue<>();
     private Selector selector;
 
-    public NioProcessor(NioConfig config, IoHandler handler, NioChannelEventDispatcher dispatcher, NioChannelIdleTimer idleTimer) throws IOException {
+    public NioProcessor(String name, NioConfig config, IoHandler handler, NioChannelEventDispatcher dispatcher, NioChannelIdleTimer idleTimer) throws IOException {
 
+        this.name = name;
         this.config = config;
         this.handler = handler;
         this.dispatcher = dispatcher;
         this.idleTimer = idleTimer;
-
         LOG.info("[Simple-NIO] processor assemble");
 
         init();
@@ -51,15 +51,21 @@ public class NioProcessor extends NioReactor implements IoProcessor{
         LOG.info("[Simple-NIO] processor start");
     }
 
+
+
     private void init() throws IOException {
         selector = Selector.open();
     }
 
     private void startup() {
-        new ProcessorThread().start();
+        new ProcessorThread(name).start();
     }
 
     private class ProcessorThread extends Thread {
+
+        public ProcessorThread(String name) {
+            super(name);
+        }
 
         @Override
         public void run() {

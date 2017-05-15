@@ -22,7 +22,6 @@ public class TestNioTcpEchoServer {
     private IoConnector connector;
 
 
-
     @Test
     public void testHelloMsg() {
         try {
@@ -43,6 +42,7 @@ public class TestNioTcpEchoServer {
         connector = new NioConnectorBuilder(handler).build();
         String msg = build(2048);
         test(msg, PORT);
+        System.out.println(msg.length() + ":" + handler.getRcv().toString().length());
         assertEquals(msg, handler.getRcv().toString());
     }
 
@@ -51,8 +51,9 @@ public class TestNioTcpEchoServer {
     public void test5000Msg() throws IOException {
         NioConnectorHandler handler = new NioConnectorHandler();
         connector = new NioConnectorBuilder(handler).build();
-        String msg = build(5000);
+        String msg = build(10000);
         test(msg, PORT);
+        System.out.println(msg.length() + ":" + handler.getRcv().toString().length());
         assertEquals(msg, handler.getRcv().toString());
     }
 
@@ -62,6 +63,7 @@ public class TestNioTcpEchoServer {
         connector = new NioConnectorBuilder(handler).build();
         String msg = build(98304);
         test(msg, PORT);
+        System.out.println(msg.length() + ":" + handler.getRcv().toString().length());
         assertEquals(msg, handler.getRcv().toString());
     }
 
@@ -87,7 +89,11 @@ public class TestNioTcpEchoServer {
 
     private void test(String msg, int port) {
         try {
-            IoAcceptor acceptor = new NioTcpAcceptorBuilder(new NioAcceptorHandler()).dispatcher(new NioOrderedThreadPoolChannelEventDispatcher()).build();
+            IoAcceptor acceptor =
+                    new NioTcpAcceptorBuilder(new NioAcceptorHandler())
+                    .dispatcher(new NioOrderedThreadPoolChannelEventDispatcher())
+                    .build();
+
             acceptor.bind(port);
             Future<Channel<byte[]>> future = connector.connect("127.0.0.1", port);
 
@@ -98,7 +104,6 @@ public class TestNioTcpEchoServer {
                 channel.wait();     //等待processor从channel中取数据
                 acceptor.shutdown();
             }
-
         } catch (InterruptedException e) {
             e.printStackTrace();
         } catch (ExecutionException e) {

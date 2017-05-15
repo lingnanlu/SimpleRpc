@@ -51,7 +51,7 @@ public class NioProcessorPool {
 
         for (int i = 0; i < pool.length; i++) {
             try {
-                pool[i] = new NioProcessor(config, handler, dispatcher, idleTimer);
+                pool[i] = new NioProcessor("NioProcessor_" + i, config, handler, dispatcher, idleTimer);
             } catch (IOException e) {
                 LOG.info("[Simple-NIO] processor created failed");
             }
